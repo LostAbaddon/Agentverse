@@ -1,0 +1,34 @@
+{
+	"name": "Agentverse",
+	"version": "0.0.1",
+	"config": {
+		"process": 2,
+		"port": {
+			"http": 80,
+			"https": 443
+		},
+		"certification": {
+			"privateKey": "key-file-path",
+			"certificate": "pem-file-path"
+		},
+		"page": {
+			"path": "./",
+			"maxage": 60000
+		},
+		"api": {
+			"url": "/api",
+			"local": "./api-folder"
+		},
+		"log": {
+			"output": "./logs"
+		},
+		"init": "./init.js"
+	},
+	"backend": {
+		"port": {
+			"http": 80,
+			"https": 443
+		},
+		"console": "/tmp/console.ipc"
+	}
+}

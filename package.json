@@ -1,0 +1,29 @@
+{
+	"name": "Agentverse",
+	"version": "0.0.1",
+	"author": {
+		"name": "LostAbaddon",
+		"email": "LostAbaddon@gmail.com"
+	},
+	"description": "A multi-agent AI tool, based on Claude",
+	"license": "MIT",
+	"homepage": "https://github.com/LostAbaddon/Agentverse",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/LostAbaddon/Agentverse"
+	},
+	"main": "src/index.js",
+	"engines": {
+		"node": ">=19.0.0"
+	},
+	"contributors": [
+		"LostAbaddon <lostabaddon@gmail.com>"
+	],
+	"dependencies": {
+		"axios": "^0.18.0",
+		"koa": "^2.11.0",
+		"koa-body": "^4.1.1",
+		"koa-static": "^5.0.0",
+		"socket.io": "^2.3.0"
+	}
+}
