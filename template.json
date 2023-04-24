@@ -30,5 +30,17 @@
 			"https": 443
 		},
 		"console": "/tmp/console.ipc"
-	}
+	},
+	"proxy": "some_proxy",
+	"setting": {
+		"Claude": {
+			"key": "empty",
+			"model": "claude-v1",
+			"temperature": 1,
+			"max_token": 1024,
+			"url": "",
+			"client": ""
+		}
+	},
+	"agent": "Claude"
 }

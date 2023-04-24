@@ -1,21 +1,38 @@
 const server = require('./server.js').server;
 const socket = require('./server.js').console;
 const AI = require('./ai');
+const Agents = require("./ai/agents.js");
 
+const Logger = _("Utils.Logger");
+const logger = new Logger('Center');
 const config = require('./config.json');
+
+const prepareAI = async (param, config) => {
+	var aiType = param.agent || config.agent;
+	if (!Agents.Agents[aiType]) {
+		aiType = config.agent;
+		if (!Agents.Agents[aiType]) {
+			aiType = Object.keys(Agents.Agents)[0];
+		}
+	}
+	await AI.init({type: aiType, config: config.setting[aiType]});
+	if (!!config.proxy) {
+		Agents.setProxy(config.proxy);
+	}
+};
 
 const startDeamon = () => new Promise(res => {
 	const ConsoleEventTag = require('./server/console').ConsoleEventTag;
 
 	AI.events.forEach(event => {
 		process.on(ConsoleEventTag + event, async (data, evt, callback) => {
-			let [reply, err] = await AI.call(event, data);
+			var [reply, err] = await AI.call(event, data);
 			callback(reply, err);
 		});
 	});
 
 	server(config)
-	.onStart((core, param, config) => {
+	.onStart(async (core, param, config) => {
 		if (!!param.daemon) {
 			if (Number.is(config.backend.port)) {
 				config.port = config.port || {};
@@ -35,7 +52,8 @@ const startDeamon = () => new Promise(res => {
 		}
 	})
 	.onReady(async (core, param, config) => {
-		console.log('System Initialized.');
+		await prepareAI(param, config);
+		logger.log('System Initialized.');
 		core.responsor.broadcast(null, 'init');
 		res();
 	})
@@ -45,11 +63,17 @@ const connectConsole = () => {
 	var target = config.backend.console;
 	if (!!target) {
 		config.ipc = config.backend.console;
+		Logger.setOutput(config.config.log.output);
+
 		let skt = socket(config)
+		.addOption("--agent -a <agent> >> AI type")
 		.add('ask')
 		.setParam('<data>')
+		.addOption("--new -n >> New session")
+		.addOption("--knowledge -k <knowledge> >> Set knowledge")
 		.add('task')
 		.setParam('<data>')
+		.addOption("--knowledge -k <knowledge> >> Set knowledge")
 		.on("command", async (param, socket) => {
 			var quests = [];
 			var tasks = param.mission;
@@ -59,25 +83,35 @@ const connectConsole = () => {
 				quest.event = task.name;
 				quest.data = task.value;
 				quests.push(quest);
+				AI.show('send', task.name, task.value.data);
 			}
+
+			AI.show('waiting');
+
 			var [result, err] = await socket.sendRequest(quests);
 			if (!!err && err.errno === -4058) {
+				await prepareAI(param, config);
+
 				[result, err] = await dealSingletonEvent(quests);
 			}
 
 			if (!!err) {
-				console.error(err.message || err.msg || err);
+				logger.error(err.message || err.msg || err);
 			}
 			else {
 				for (let evt in result) {
 					let rst = result[evt];
 					if (rst.ok) {
-						AI.show(evt, rst.data);
+						AI.show('reply', evt, rst.data);
 					}
 					else {
-						AI.show(evt, null, rst.message);
+						AI.show('reply', evt, null, rst.message);
 					}
 				}
+
+				AI.show('leaving');
+				await wait(1000);
+				process.exit();
 			}
 		})
 		.launch();

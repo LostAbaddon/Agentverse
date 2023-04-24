@@ -12,7 +12,7 @@ const styles = {
 	modifier: {
 		reset: [0, 0],
 		// 21 isn't widely supported and 22 does the same thing
-		bold: [1, 22],
+		bold: [1, 21],
 		dim: [2, 22],
 		italic: [3, 23],
 		underline: [4, 24],
