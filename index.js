@@ -7,6 +7,8 @@ const Logger = _("Utils.Logger");
 const logger = new Logger('Center');
 const config = require('./config.json');
 
+global.isSingleton = false;
+
 const prepareAI = async (param, config) => {
 	var aiType = param.agent || config.agent;
 	if (!Agents.Agents[aiType]) {
@@ -74,6 +76,7 @@ const connectConsole = () => {
 		.add('task')
 		.setParam('<data>')
 		.addOption("--knowledge -k <knowledge> >> Set knowledge")
+		.addOption("--max -m <max> >> Max execution times")
 		.on("command", async (param, socket) => {
 			var quests = [];
 			var tasks = param.mission;
@@ -90,13 +93,15 @@ const connectConsole = () => {
 
 			var [result, err] = await socket.sendRequest(quests);
 			if (!!err && err.errno === -4058) {
+				global.isSingleton = true;
 				await prepareAI(param, config);
 
 				[result, err] = await dealSingletonEvent(quests);
 			}
 
 			if (!!err) {
-				logger.error(err.message || err.msg || err);
+				if (isSingleton) console.error(err);
+				else logger.error(err.message || err.msg || err);
 			}
 			else {
 				for (let evt in result) {
@@ -124,7 +129,7 @@ const dealSingletonEvent = async tasks => {
 			let [reply, err] = await AI.call(task.event, task.data);
 			if (!!err) {
 				let e = { ok: false };
-				Object.assign(e, err);
+				e.message = err.message || e.msg || err.toString();
 				result[task.name] = e;
 			}
 			else {

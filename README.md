@@ -1,6 +1,6 @@
 # Agentverse: the multiverse for AI-Agents
 
-This is a multi-agent AI platform, based on Claude.
+This is an autonomous multi-agent AI platform, based on Claude.
 
 ## Slogan
 

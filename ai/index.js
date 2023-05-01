@@ -41,15 +41,17 @@ const callFunction = async (event, data) => {
 
 	if (!agent[event]) {
 		let errMsg = "No handler for event " + event;
-		logger.error(errMsg);
+		if (global.isSingleton) console.error(errMsg);
+		else logger.error(errMsg);
 		return [undefined, new Error(errMsg)];
 	}
 
 	var result, err;
 	try {
-		result = await agent[event](data.data);
+		result = await agent[event](data);
 	}
 	catch (e) {
+		console.error(e);
 		err = e;
 		result = null;
 	}
@@ -61,7 +63,7 @@ const showResult = (type, event, data, err) => {
 			console.log(setStyle("AI get wrong: ", "bold red") + (err.message || err.msg || err));
 		}
 		else {
-			console.log(setStyle("AI replied: ", "bold yellow") + data);
+			console.log(setStyle("AI reply: ", "bold green") + data);
 		}
 	}
 	else if (type === 'send') {
@@ -90,7 +92,7 @@ const newAgent = () => {
 const removeAgent = (aid) => {
 	var agent = Runtime.pool[aid];
 	if (!!agent) {
-		logger.log('Delete Agent', agent);
+		console.log('Delete Agent', agent);
 		delete Runtime.pool[aid];
 		return true;
 	}
@@ -116,9 +118,3 @@ module.exports = {
 
 	onNewAgent,
 };
-
-setTimeout(() => {
-	return;
-	console.log(newAgent());
-	console.log(Runtime);
-}, 1000);
