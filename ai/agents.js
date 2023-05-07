@@ -1,28 +1,12 @@
 const { readFile, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const Axios = require('axios');
-const SocksProxyAgent = require('socks-proxy-agent');
 const preparePath = _("Utils").preparePath;
 const AbstractAgent = require('./agent/abstract.js');
 const Commands = require('../commands');
 
-var httpsAgent;
-
 const Agents = {};
 
-const setProxy = url => {
-	if (!url) {
-		httpsAgent = null;
-		return;
-	}
-
-	try {
-		httpsAgent = new SocksProxyAgent.SocksProxyAgent(url);
-	}
-	catch {
-		httpsAgent = null;
-	}
-};
 const readLocalFile = async filepath => {
 	if (filepath.indexOf('.') === 0) {
 		filepath = join(process.cwd(), filepath);
@@ -70,7 +54,7 @@ const ini2json = ini => {
 };
 const md2json = md => {
 	var json = {}, key, level = 0, tree = [], curr, empty = true;
-	md = md.split(/\r*\n\r*/);
+	md = (md || '').split(/\r*\n\r*/);
 	md.forEach(line => {
 		var lev = line.match(/^(#+)[\s\t]*(.+)$/);
 		if (!!lev) {
@@ -147,7 +131,7 @@ const loadPrompt = async type => {
 	return ini2json(data);
 };
 const sendRequest = ctx => new Promise((res, rej) => {
-	if (!!httpsAgent) ctx.httpsAgent = httpsAgent;
+	if (!!global.globalHTTPSProxy) ctx.httpsAgent = global.globalHTTPSProxy;
 	Axios.request(ctx).then(result => {
 		res(result.data);
 	}).catch(err => {
@@ -161,7 +145,6 @@ module.exports = {
 	initAI,
 	ini2json,
 	md2json,
-	setProxy,
 	readFile: readLocalFile,
 	loadPrompt,
 	sendRequest

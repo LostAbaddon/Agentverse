@@ -26,13 +26,18 @@ Commands.loadCommands = async () => {
 };
 Commands.generateCommands = () => {
 	var list = Commands.list.map((cmd, i) => {
-		var command = i + 1 + '. ' + cmd.name + ': "' + cmd.command + '", args: ';
+		var command = i + 1 + '. ' + cmd.name + ': "' + cmd.command + '", ';
 		var args = [];
 		for (let arg in cmd.args) {
 			let hint = cmd.args[arg];
 			args.push('"' + arg + '": "<' + hint + '>"');
 		}
-		command += args.join(', ');
+		if (args.length === 0) {
+			command += 'no arg.';
+		}
+		else {
+			command += 'args: ' + args.join(', ');
+		}
 		return command;
 	});
 	return list.join('\n');

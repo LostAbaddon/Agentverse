@@ -18,7 +18,8 @@ class AbstractAgent {
 	addMemory (human, ai) {}	// add a conversation to history
 
 	send (prompt, heat, session) {}	// send request to AI backend
-	ask (prompt, heat) {}				// continue the chat
+	ask (prompt, heat) {}			// continue the chat
+	task (task) {}					// complete the mission automonously
 
 	fork () {}	// fork an agent with current session
 	copy () {}	// copy a whole new agent with initial setting

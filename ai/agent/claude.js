@@ -50,6 +50,7 @@ const normalize = content => {
 	return content.join('\n');
 };
 const analyzeCommands = content => {
+	// console.log(content);
 	var json = [], last = '';
 	content = '\n' + content.split(/\r*\n\r*/).join('\n\n') + '\n';
 	content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1|:\s*[\[\{]+([\w\W]*?)[\]\}]+[^\[\]\{\}]*?\n/gi, (match, _, name, value) => {
@@ -112,14 +113,15 @@ const showAIResponse = response => {
 	}
 };
 const executeCommands = async (commands) => {
-	var task_complete = false, replies = [];
+	var task_complete = true, replies = [];
 
 	if (!!commands && !!commands.length) {
 		let tasks = commands.map(async cmd => {
 			var [name, args] = cmd;
 			var info = Commands.list.filter(c => c.command === name)[0];
 			if (!info) {
-				let alias = Commands.alias[name];
+				let alias = name.replace(/[ \-\.]/g, '_').toLowerCase();
+				alias = Commands.alias[alias];
 				info = Commands.list.filter(c => c.command === alias)[0];
 			}
 			if (!info) {
@@ -142,10 +144,8 @@ const executeCommands = async (commands) => {
 				if (!!result.speak) {
 					print("Execute command " + info.name + ' completed with respond: ', result.speak, 'info');
 				}
-				if (!!result.exit) {
-					task_complete = true;
-				}
-				else if (!!result.reply) {
+				if (!result.exit) {
+					task_complete = false;
 					replies.push("Command " + name + ' returned: ' + result.reply);
 				}
 			}
@@ -166,6 +166,7 @@ class ClaudeAgent extends AbstractAgent {
 	#max_token = 1024;
 	#api_url = "";
 	#client_id = "";
+	#retryMax = 1;
 
 	#knowledge = [];
 	#memory = [];
@@ -210,6 +211,9 @@ class ClaudeAgent extends AbstractAgent {
 		}
 		if (config.max_token > 0 && config.max_token <= 8000) {
 			this.#max_token = config.max_token;
+		}
+		if (config.retry > 0) {
+			this.#retryMax = config.retry;
 		}
 	}
 	async loadKnowledge (filepath) {
@@ -264,6 +268,7 @@ class ClaudeAgent extends AbstractAgent {
 				if (addtion) {
 					human.push(PREFIX_HUMAN + ClaudeAgent.Prompts.systemInfo + 'current time is ' + nowTime);
 					human.push(prompt);
+					human.push('');
 					human.push(ClaudeAgent.Prompts.replyFormat);
 				}
 				else {
@@ -280,6 +285,13 @@ class ClaudeAgent extends AbstractAgent {
 			if (!!content) current.unshift(content);
 			current.push(PREFIX_AI);
 			current = '\n\n' + current.join('\n\n');
+			// console.log('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV');
+			// console.log('     VVVVVVVVVVVVVVVVVVVVVVV');
+			// console.log('         VVVVVVVVVVVVVVV');
+			// console.log('            VVVVVVVVV');
+			// console.log('              VVVVV');
+			// console.log('               VVV');
+			// console.log(current);
 
 			let reply
 			let data = {
@@ -291,17 +303,38 @@ class ClaudeAgent extends AbstractAgent {
 			};
 
 			if (!global.isSingleton) logger.info('Send request to Claude...');
-			reply = await sendRequest({
-				url: this.#api_url,
-				method: "POST",
-				headers: {
-					Accept: "application/json",
-					"Content-Type": "application/json",
-					Client: this.#client_id,
-					"X-API-Key": this.#api_key,
-				},
-				data,
-			});
+			for (let i = this.#retryMax; i > 0; i --) {
+				try {
+					reply = await sendRequest({
+						url: this.#api_url,
+						method: "POST",
+						headers: {
+							Accept: "application/json",
+							"Content-Type": "application/json",
+							Client: this.#client_id,
+							"X-API-Key": this.#api_key,
+						},
+						data,
+					});
+					break;
+				}
+				catch (err) {
+					print("Fetch response failed: ", err.message || err.msg || err, "error");
+					if (i > 1) {
+						logger.info('retry...');
+					}
+					else {
+						throw err;
+					}
+				}
+			}
+			// console.log('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
+			// console.log('     XXXXXXXXXXXXXXXXXXXXXXX');
+			// console.log('         XXXXXXXXXXXXXXX');
+			// console.log('            XXXXXXXXX');
+			// console.log('              XXXXX');
+			// console.log('               XXX');
+			// console.log(reply);
 
 			if (!!reply.exception) {
 				throw new Error(reply.exception);
@@ -407,6 +440,10 @@ class ClaudeAgent extends AbstractAgent {
 			replies = workflow.missionContinueEmpty;
 		}
 		else {
+			if (!!workflow.missionContinue) {
+				replies.push('');
+				replies.push('workflow.missionContinue');
+			}
 			replies = replies.join('\n');
 		}
 
@@ -436,22 +473,28 @@ class ClaudeAgent extends AbstractAgent {
 		return [result, loop, timespent];
 	}
 	async task (task) {
-		var workflow = ClaudeAgent.Workflow[template] || ClaudeAgent.Workflow.default;
-		workflow = Object.assign({}, ClaudeAgent.Workflow.default, workflow);
-		var heatDecay = parseInt(workflow.missionHeatDecayRate || 1);
-		var heatMin = parseInt(workflow.missionHeatMin || 0);
-		var heatMax = parseInt(workflow.missionHeatMax || 1);
-
-		var loops = 0, totalTime = 0, max = task.max, heat = heatMax;
+		var loops = 0, totalTime = 0, max = task.max;
 		if (!max) max = Infinity;
-
 		var answer, loop, timespent;
 		var replies, completed, emptyLoop = 0, msg;
+		var history = [];
+		var role, template, language;
+		var workflow;
+		var heatDecay, heatMin, heatMax, heat;
+
 		try {
 			[answer, loop, timespent] = await this.analyzeRole(task.data);
 			loops += loop;
 			totalTime += timespent;
-			let {role, template, language} = answer;
+			role = answer.role;
+			template = answer.template;
+			language = answer.language;
+			workflow = ClaudeAgent.Workflow[template] || ClaudeAgent.Workflow.default;
+			workflow = Object.assign({}, ClaudeAgent.Workflow.default, workflow);
+			heatDecay = parseInt(workflow.missionHeatDecayRate || 1);
+			heatMin = parseInt(workflow.missionHeatMin || 0);
+			heatMax = parseInt(workflow.missionHeatMax || 1);
+			heat = heatMax;
 
 			[answer, loop, timespent] = await this.startMission(workflow, role, task.data, heat);
 			loops += loop;
@@ -468,8 +511,25 @@ class ClaudeAgent extends AbstractAgent {
 				emptyLoop = 0;
 			}
 
+			if (!!answer) {
+				if (!!answer.speak) history.push([loops, answer.speak]);
+				if (!!answer.thoughts) {
+					if (completed) {
+						history.push([loops - 0.9, answer.thoughts]);
+					}
+					else {
+						history.push([loops - 1.1, answer.thoughts]);
+					}
+				}
+			}
+
 			if (completed) {
-				return 'Mission Completed.';
+				let reply = 'Mission Completed.';
+				if (history.length > 0) {
+					history.sort((a, b) => b[0] - a[0]);
+					reply = history[0][1];
+				}
+				return reply;
 			}
 			if (loops >= max) {
 				print("Mission Failed: ", 'AI call times exhausted.', 'error');
@@ -497,8 +557,25 @@ class ClaudeAgent extends AbstractAgent {
 					emptyLoop = 0;
 				}
 
+				if (!!answer) {
+					if (!!answer.speak) history.push([loops, answer.speak]);
+					if (!!answer.thoughts) {
+						if (completed) {
+							history.push([loops - 0.9, answer.thoughts]);
+						}
+						else {
+							history.push([loops - 1.1, answer.thoughts]);
+						}
+					}
+				}
+
 				if (completed) {
-					return 'Mission Completed.';
+					let reply = 'Mission Completed.';
+					if (history.length > 0) {
+						history.sort((a, b) => b[0] - a[0]);
+						reply = history[0][1];
+					}
+					return reply;
 				}
 				if (loops >= max) {
 					print("Mission Failed: ", 'AI call times exhausted.', 'error');
@@ -508,9 +585,12 @@ class ClaudeAgent extends AbstractAgent {
 					print("Mission maybe completed: ", 'AI didn\'t response actively.', 'warn');
 					return 'Mission maybe completed: AI didn\'t response actively.';
 				}
+
+				if (USE_TEST) break;
 			}
 		}
 		catch (err) {
+			// console.log(err);
 			err = err.message || err.msg || err;
 			print('Mission Failed: ', err, 'error');
 			return 'mission failed: ' + err;

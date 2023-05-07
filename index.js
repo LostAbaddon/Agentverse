@@ -1,3 +1,5 @@
+const SocksProxyAgent = require('socks-proxy-agent');
+
 const server = require('./server.js').server;
 const socket = require('./server.js').console;
 const AI = require('./ai');
@@ -17,9 +19,25 @@ const prepareAI = async (param, config) => {
 			aiType = Object.keys(Agents.Agents)[0];
 		}
 	}
-	await AI.init({type: aiType, config: config.setting[aiType]});
+	var cfg = config.setting[aiType];
+	cfg.retry = config.setting.retry;
+	await AI.init({type: aiType, config: cfg});
 	if (!!config.proxy) {
-		Agents.setProxy(config.proxy);
+		try {
+			global.globalHTTPSProxy = new SocksProxyAgent.SocksProxyAgent(config.proxy);
+			global.globalHTTPSProxy.keepAlive = true;
+			global.globalHTTPSProxy.keepAliveMsecs = 1000;
+			global.globalHTTPSProxy.scheduling = 'lifo';
+			global.globalHTTPSProxy.options = {
+				keepAlive: true,
+				scheduling: 'lifo',
+				timeout: 5000,
+				noDelay: true
+			};
+		}
+		catch {
+			global.globalHTTPSProxy = null;
+		}
 	}
 };
 

@@ -37,10 +37,16 @@
 			"key": "empty",
 			"model": "claude-v1",
 			"temperature": 1,
-			"max_token": 1024,
-			"url": "",
-			"client": ""
-		}
+			"max_token": 1024
+		},
+		"retry": 3
 	},
-	"agent": "Claude"
+	"agent": "Claude",
+	"extensions": {
+		"google_search": {
+			"proxy": "some_proxy",
+			"count": 10,
+			"apikey": "key"
+		}
+	}
 }
