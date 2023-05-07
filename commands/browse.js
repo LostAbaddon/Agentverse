@@ -41,13 +41,6 @@ const getWebpage = (requestOptions) => new Promise((res, rej) => {
 });
 
 command.execute = async (type, caller, target) => {
-	console.log('VVVVVVVVVVVVvVVVVVVVVVVVV');
-	console.log(' VVVVVVVVVVVvVVVVVVVVVVV');
-	console.log('   VVVVVVVVVvVVVVVVVVV');
-	console.log('      VVVVVVvVVVVVV');
-	console.log('          VVvVV');
-	console.log(target);
-
 	var url;
 	for (let key in target) {
 		if (key.match(/\b(url|web|site|query|target)\b/i)) {
