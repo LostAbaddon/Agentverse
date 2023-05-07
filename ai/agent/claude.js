@@ -52,7 +52,7 @@ const normalize = content => {
 const analyzeCommands = content => {
 	// console.log(content);
 	var json = [], last = '';
-	content = '\n' + content.split(/\r*\n\r*/).join('\n\n') + '\n';
+	content = '\n' + (content || '').split(/\r*\n\r*/).join('\n\n') + '\n';
 	content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1|:\s*[\[\{]+([\w\W]*?)[\]\}]+[^\[\]\{\}]*?\n/gi, (match, _, name, value) => {
 		if (!!name) {
 			let m = match.match(/^\W*([\w_ ]+)/);

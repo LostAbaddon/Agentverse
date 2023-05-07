@@ -56,11 +56,19 @@ command.execute = async (type, caller, target) => {
 		}
 	}
 	var requestOptions = Object.assign({}, DefaultOptions, { url });
-	var result = await getWebpage(requestOptions);
-	console.log(result);
+	var content = await getWebpage(requestOptions);
+	content = ('\n' + content + '\n')
+		.replace(/<![^>]*?>/gi, '')
+		.replace(/<(head|noscript|script|title|style|header|footer|aside)[\w\W]*?>[\w\W]*?<\/\1>/gi, '')
+		.replace(/<(meta|input|img)[\w\W]*?>/gi, '')
+		.replace(/<[^\/\\]*?[\/\\]>/gi, '')
+		.replace(/<\/?(div|br|hr|p|article|section|h\d)[^>]*?>/gi, '\n')
+		.replace(/<\/?[\w\-_]+[^<>]*?>/gi, '')
+		.replace(/\s*[\r\n]+\s*/g, '\n')
+	;
 	return {
 		speak: "Get webpage content: " + url,
-		reply: result,
+		reply: content,
 		exit: false
 	};
 };
