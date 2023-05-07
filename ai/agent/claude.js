@@ -113,15 +113,15 @@ const showAIResponse = response => {
 	}
 };
 const executeCommands = async (commands) => {
-	var task_complete = true, replies = [];
+	var task_complete = true, replies = [], count = 0;
 
 	if (!!commands && !!commands.length) {
 		let tasks = commands.map(async cmd => {
 			var [name, args] = cmd;
-			var info = Commands.list.filter(c => c.command === name)[0];
+			var action = name.replace(/[ \t\-\.]/g, '_').toLowerCase();
+			var info = Commands.list.filter(c => c.command === action)[0];
 			if (!info) {
-				let alias = name.replace(/[ \-\.]/g, '_').toLowerCase();
-				alias = Commands.alias[alias];
+				let alias = Commands.alias[action];
 				info = Commands.list.filter(c => c.command === alias)[0];
 			}
 			if (!info) {
@@ -144,9 +144,15 @@ const executeCommands = async (commands) => {
 				if (!!result.speak) {
 					print("Execute command " + info.name + ' completed with respond: ', result.speak, 'info');
 				}
-				if (!result.exit) {
-					task_complete = false;
+				if (result.exit !== true) {
 					replies.push("Command " + name + ' returned: ' + result.reply);
+				}
+				if (result.exit === false) {
+					count ++;
+					task_complete = false;
+				}
+				else if (result.exit === true) {
+					count ++;
 				}
 			}
 			catch (err) {
@@ -155,8 +161,26 @@ const executeCommands = async (commands) => {
 		});
 		await Promise.all(tasks);
 	}
+	if (count === 0) task_complete = false;
 
 	return [replies, task_complete];
+};
+const chooseResult = (history, language) => {
+	var reply = 'Mission Completed.';
+	if (history.length > 0) {
+		history.sort((a, b) => b[0] - a[0]);
+		reply = history[0][1];
+		if (language.match(/\b\s*(汉语|中文|chinese)\s*$/i)) {
+			reply = reply
+				.replace(/\s*,\s*/gi, '，')
+				.replace(/\s*!\s*/gi, '！')
+				.replace(/\s*\?\s*/gi, '？')
+				.replace(/\s*;\s*/gi, '；')
+				.replace(/\s*:\s*/gi, '：')
+			;
+		}
+	}
+	return reply;
 };
 
 class ClaudeAgent extends AbstractAgent {
@@ -524,12 +548,7 @@ class ClaudeAgent extends AbstractAgent {
 			}
 
 			if (completed) {
-				let reply = 'Mission Completed.';
-				if (history.length > 0) {
-					history.sort((a, b) => b[0] - a[0]);
-					reply = history[0][1];
-				}
-				return reply;
+				return chooseResult(history, language);
 			}
 			if (loops >= max) {
 				print("Mission Failed: ", 'AI call times exhausted.', 'error');
@@ -570,12 +589,7 @@ class ClaudeAgent extends AbstractAgent {
 				}
 
 				if (completed) {
-					let reply = 'Mission Completed.';
-					if (history.length > 0) {
-						history.sort((a, b) => b[0] - a[0]);
-						reply = history[0][1];
-					}
-					return reply;
+					return chooseResult(history, language);
 				}
 				if (loops >= max) {
 					print("Mission Failed: ", 'AI call times exhausted.', 'error');
@@ -590,10 +604,10 @@ class ClaudeAgent extends AbstractAgent {
 			}
 		}
 		catch (err) {
-			// console.log(err);
-			err = err.message || err.msg || err;
-			print('Mission Failed: ', err, 'error');
-			return 'mission failed: ' + err;
+			let msg = err.message || err.msg || err;
+			print('Mission Failed: ', msg, 'error');
+			console.log(err);
+			return 'mission failed: ' + msg;
 		}
 
 		return answer;

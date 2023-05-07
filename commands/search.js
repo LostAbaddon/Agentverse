@@ -1,4 +1,3 @@
-const { URL } = require('url');
 const Google = require('google');
 const config = require('../config.json');
 
@@ -19,9 +18,9 @@ if (!!config.extensions?.google_search?.proxy) {
 const command = {
 	"name": "Search",
 	"cmd": "google_search",
-	"alias": ['google', 'search', 'google search'],
+	"alias": ['google', 'search', 'web_search'],
 	"args": {
-		"query": "query"
+		"query": "<query>"
 	}
 };
 
@@ -114,10 +113,11 @@ const scrabGoogle = (query) => new Promise((res, rej) => {
 
 		var result = [];
 		items.forEach(item => {
-			var ctx = item[1];
+			if (!item || !item[0]) return;
+			var ctx = item[1] || '';
 			ctx = ctx.split('\n');
-			ctx = ctx.map(line => line.replace(/^\-\s*/, '')).join('\n  ');
-			result.push('- ' + ctx + '\n  link: ' + item[0]);
+			ctx = ctx.map(line => line.replace(/^\-\s*/, '\n  ')).join('\n  ');
+			result.push('- URL: ' + item[0] + ctx);
 		});
 		res(result.join('\n'));
 	});
@@ -144,12 +144,14 @@ command.execute = async (type, caller, target) => {
 		return {
 			speak: reply,
 			reply: reply,
+			exit: false
 		};
 	}
 	catch (err) {
 		return {
 			speak: "Search Google for \"" + queries.join(', ') + "\" failed.",
 			reply: "failed",
+			exit: false
 		};
 	}
 };
