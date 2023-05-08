@@ -48,7 +48,6 @@ const normalize = content => {
 	return content.join('\n');
 };
 const analyzeCommands = content => {
-	// console.log(content);
 	var json = [], last = '';
 	content = '\n' + (content || '').split(/\r*\n\r*/).join('\n\n') + '\n';
 	content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1|:\s*[\[\{]+([\w\W]*?)[\]\}]+[^\[\]\{\}]*?\n/gi, (match, _, name, value) => {
@@ -78,7 +77,7 @@ const analyzeCommands = content => {
 				v = v.replace(/^[\s'"]*|[\s'"]*$/g, '');
 				args[poses[i][2]] = v;
 			}
-			json.push([last, args]);
+			json.push([last, args, match]);
 		}
 		return match;
 	});
@@ -121,7 +120,7 @@ const executeCommands = async (commands) => {
 
 	if (!!commands && !!commands.length) {
 		let tasks = commands.map(async cmd => {
-			var [name, args] = cmd;
+			var [name, args, raw] = cmd;
 			var action = name.replace(/[ \t\-\.]/g, '_').toLowerCase();
 			var info = Commands.list.filter(c => c.command === action)[0];
 			if (!info) {
@@ -149,7 +148,7 @@ const executeCommands = async (commands) => {
 					print("Execute command " + info.name + ' completed with respond: ', result.speak, 'info');
 				}
 				if (result.exit !== true) {
-					replies.push("## Command (" + name + argText + ') returned\n\n' + result.reply);
+					replies.push("## Command (" + name + ': ' + raw + ') returned\n\n' + result.reply);
 				}
 				if (result.exit === false) {
 					task_complete = false;
