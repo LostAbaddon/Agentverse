@@ -74,13 +74,13 @@ command.execute = async (type, caller, target) => {
 		}
 		catch (err) {
 			if (i > 1) {
-				console.error("Get webpage \"" + queries.join(', ') + "\" failed:" + (err.message || err.msg || err))
+				console.error("Get webpage \"" + url + "\" failed:" + (err.message || err.msg || err))
 				await wait(1000);
 				console.error('Retry searching...');
 				continue;
 			}
 			return {
-				speak: "Get webpage \"" + queries.join(', ') + "\" failed:" + (err.message || err.msg || err),
+				speak: "Get webpage \"" + url + "\" failed:" + (err.message || err.msg || err),
 				reply: "failed",
 				exit: false
 			};

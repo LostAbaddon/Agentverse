@@ -315,13 +315,6 @@ class ClaudeAgent extends AbstractAgent {
 			if (!!content) current.unshift(content);
 			current.push(PREFIX_AI);
 			current = '\n\n' + current.join('\n\n');
-			// console.log('VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV');
-			// console.log('     VVVVVVVVVVVVVVVVVVVVVVV');
-			// console.log('         VVVVVVVVVVVVVVV');
-			// console.log('            VVVVVVVVV');
-			// console.log('              VVVVV');
-			// console.log('               VVV');
-			// console.log(current);
 
 			let reply
 			let data = {
@@ -358,13 +351,6 @@ class ClaudeAgent extends AbstractAgent {
 					}
 				}
 			}
-			// console.log('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX');
-			// console.log('     XXXXXXXXXXXXXXXXXXXXXXX');
-			// console.log('         XXXXXXXXXXXXXXX');
-			// console.log('            XXXXXXXXX');
-			// console.log('              XXXXX');
-			// console.log('               XXX');
-			// console.log(reply);
 
 			if (!!reply.exception) {
 				throw new Error(reply.exception);
