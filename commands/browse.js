@@ -31,6 +31,12 @@ const getWebpage = (requestOptions) => new Promise((res, rej) => {
 		if (!!err) {
 			rej(err);
 		}
+		else if ([400, 401, 402].includes(resp.statusCode)) {
+			res("wrong request.")
+		}
+		else if (resp.statusCode > 402 && resp.statusCode < 500) {
+			res("cannot get this page.")
+		}
 		else if (resp.statusCode !== 200) {
 			rej(new Error('Error with response status code: ' + resp.statusCode));
 		}

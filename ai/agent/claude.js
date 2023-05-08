@@ -111,7 +111,7 @@ const showAIResponse = response => {
 	if (!!response.speak) {
 		print("Talking to YOU: ", response.speak.replace(/[\r\n]+/g, '\n'), 'log');
 	}
-	if (!!response.command && !!response.command) {
+	if (!!response.command && !!response.command.length) {
 		print("Jobs to do: ", '', 'info');
 		for (let cmd of response.command) {
 			print("- ", cmd[0] + '(' + JSON.stringify(cmd[1]) + ')', 'info');
@@ -119,7 +119,7 @@ const showAIResponse = response => {
 	}
 };
 const executeCommands = async (commands) => {
-	var task_complete = true, replies = [], count = 0;
+	var task_complete = true, replies = [];
 
 	if (!!commands && !!commands.length) {
 		let tasks = commands.map(async cmd => {
@@ -154,11 +154,7 @@ const executeCommands = async (commands) => {
 					replies.push("Command " + name + ' returned: ' + result.reply);
 				}
 				if (result.exit === false) {
-					count ++;
 					task_complete = false;
-				}
-				else if (result.exit === true) {
-					count ++;
 				}
 			}
 			catch (err) {
@@ -167,7 +163,6 @@ const executeCommands = async (commands) => {
 		});
 		await Promise.all(tasks);
 	}
-	if (count === 0) task_complete = false;
 
 	return [replies, task_complete];
 };
