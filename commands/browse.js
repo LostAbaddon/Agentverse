@@ -22,7 +22,7 @@ const command = {
 	"cmd": "browse_website",
 	"alias": ['browse', 'website', 'webpage', 'browse_web', 'browse_site', 'browse_webpage', 'browse_page'],
 	"args": {
-		"url": "<url>"
+		"url": "url"
 	}
 };
 
@@ -71,6 +71,7 @@ command.execute = async (type, caller, target) => {
 				.replace(/<\/?(div|br|hr|p|article|section|h\d)[^>]*?>/gi, '\n')
 				.replace(/<\/?[\w\-_]+[^<>]*?>/gi, '')
 				.replace(/\s*[\r\n]+\s*/g, '\n')
+				.replace(/^[\s\n]+|[\s\n]+$/g, '')
 			;
 			return {
 				speak: "Get webpage content: " + url + " (" + content.length + ' bytes)',

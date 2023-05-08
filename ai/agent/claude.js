@@ -19,8 +19,6 @@ const PREFIX_HUMAN = "Human: ";
 const PREFIX_AI = "Assistant: ";
 const MaxEmptyLoop = 5;
 
-const USE_TEST = false; // for test
-
 const print = (hint, content, type="info") => {
 	var cmd = !!PrintStyle[type] ? type : 'info';
 	var style = PrintStyle[type] || type;
@@ -88,7 +86,7 @@ const analyzeCommands = content => {
 };
 const analyzeRole = role => {
 	role = role
-		.replace(/^\d+\.\s*/, '')
+		.replace(/^(#*|\d+\.)*\s*/, '')
 		.trim()
 		.replace(/[\*_`'"!\?\\\/]/gi, '')
 	;
@@ -151,7 +149,7 @@ const executeCommands = async (commands) => {
 					print("Execute command " + info.name + ' completed with respond: ', result.speak, 'info');
 				}
 				if (result.exit !== true) {
-					replies.push("Command " + name + ' returned: ' + result.reply);
+					replies.push("## Command (" + name + argText + ') returned\n\n' + result.reply);
 				}
 				if (result.exit === false) {
 					task_complete = false;
@@ -334,6 +332,11 @@ class ClaudeAgent extends AbstractAgent {
 						},
 						data,
 					});
+					let fs = require('node:fs/promises');
+					const { join } = require('node:path');
+					let idx = global._writeIdx || 0;
+					await fs.writeFile(join(process.cwd(), 'test', 'send-' + idx + '.txt'), current, 'utf-8');
+					global._writeIdx = idx + 1;
 					break;
 				}
 				catch (err) {
@@ -382,19 +385,12 @@ class ClaudeAgent extends AbstractAgent {
 		;
 
 		var answer, loop, timespent;
-		if (USE_TEST) {
-			answer = '1. Project Analyst\n2. engineer\n3. Chinese';
-			loop = 1;
-			timespent = 1;
+		try {
+			[answer, loop, timespent] = await this.send(prompt, 1);
 		}
-		else {
-			try {
-				[answer, loop, timespent] = await this.send(prompt, 1);
-			}
-			catch (err) {
-				print("Analyze role failed: ", err.message || err.msg || err, 'error');
-				throw err;
-			}
+		catch (err) {
+			print("Analyze role failed: ", err.message || err.msg || err, 'error');
+			throw err;
 		}
 		answer = answer
 			.split(/[\r\n]+/)
@@ -422,17 +418,7 @@ class ClaudeAgent extends AbstractAgent {
 		;
 
 		var answer, loop, timespent;
-		if (USE_TEST) {
-			answer = workflow.test1;
-			loop = 1;
-			timespent = 1;
-		}
-		else {
-			[answer, loop, timespent] = await this.send(prompt, heat, false);
-			let fs = require('node:fs/promises');
-			const { join } = require('node:path');
-			await fs.writeFile(join(process.cwd(), 'test', 'start.txt'), answer, 'utf-8');
-		}
+		[answer, loop, timespent] = await this.send(prompt, heat, false);
 		answer = normalize(answer);
 
 		var result = md2json(answer);
@@ -453,23 +439,13 @@ class ClaudeAgent extends AbstractAgent {
 		else {
 			if (!!workflow.missionContinue) {
 				replies.push('');
-				replies.push('workflow.missionContinue');
+				replies.push(workflow.missionContinue);
 			}
-			replies = replies.join('\n');
+			replies = replies.join('\n\n');
 		}
 
 		var answer, loop, timespent;
-		if (USE_TEST) {
-			answer = workflow.test2;
-			loop = 1;
-			timespent = 1;
-		}
-		else {
-			[answer, loop, timespent] = await this.send(replies, heat, false);
-			let fs = require('node:fs/promises');
-			const { join } = require('node:path');
-			await fs.writeFile(join(process.cwd(), 'test', 'reply.txt'), answer, 'utf-8');
-		}
+		[answer, loop, timespent] = await this.send(replies, heat, false);
 		answer = normalize(answer);
 
 		var result = md2json(answer);
@@ -586,8 +562,6 @@ class ClaudeAgent extends AbstractAgent {
 					print("Mission maybe completed: ", 'AI didn\'t response actively.', 'warn');
 					return 'Mission maybe completed: AI didn\'t response actively.';
 				}
-
-				if (USE_TEST) break;
 			}
 		}
 		catch (err) {

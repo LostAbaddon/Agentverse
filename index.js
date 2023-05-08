@@ -144,6 +144,10 @@ const dealSingletonEvent = async tasks => {
 	var result = {};
 	await Promise.all(tasks.map(async task => {
 		if (AI.events.includes(task.event)) {
+			task.data.data = task.data.data.replace(/(\\+)n/gi, (match, pre) => {
+				if (pre.length >> 1 << 1 === pre.length) return match;
+				return '\n';
+			});
 			let [reply, err] = await AI.call(task.event, task.data);
 			if (!!err) {
 				let e = { ok: false };

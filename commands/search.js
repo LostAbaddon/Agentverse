@@ -20,7 +20,7 @@ const command = {
 	"cmd": "google_search",
 	"alias": ['google', 'search', 'web_search'],
 	"args": {
-		"query": "<query>"
+		"query": "query"
 	}
 };
 
@@ -142,7 +142,7 @@ command.execute = async (type, caller, target) => {
 			}));
 			var reply = [];
 			for (let target in result) {
-				reply.push('Google results for "' + target + '" are:\n' + result[target]);
+				reply.push(result[target]);
 			}
 			reply = reply.join('\n\n');
 			return {
