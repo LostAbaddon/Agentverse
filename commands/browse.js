@@ -73,7 +73,7 @@ command.execute = async (type, caller, target) => {
 				.replace(/\s*[\r\n]+\s*/g, '\n')
 			;
 			return {
-				speak: "Get webpage content: " + url,
+				speak: "Get webpage content: " + url + " (" + content.length + ' bytes)',
 				reply: content,
 				exit: false
 			};
@@ -82,7 +82,7 @@ command.execute = async (type, caller, target) => {
 			if (i > 1) {
 				console.error("Get webpage \"" + url + "\" failed:" + (err.message || err.msg || err))
 				await wait(1000);
-				console.error('Retry searching...');
+				console.error('Retry browsing...');
 				continue;
 			}
 			return {
