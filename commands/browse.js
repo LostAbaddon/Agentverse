@@ -41,6 +41,9 @@ const getWebpage = (requestOptions) => new Promise((res, rej) => {
 });
 
 command.execute = async (type, caller, target) => {
+	var retryMax = config.setting?.retry || 1;
+	if (!(retryMax > 1)) retryMax = 1;
+
 	var url;
 	for (let key in target) {
 		if (key.match(/\b(url|web|site|query|target)\b/i)) {
@@ -49,21 +52,40 @@ command.execute = async (type, caller, target) => {
 		}
 	}
 	var requestOptions = Object.assign({}, DefaultOptions, { url });
-	var content = await getWebpage(requestOptions);
-	content = ('\n' + content + '\n')
-		.replace(/<![^>]*?>/gi, '')
-		.replace(/<(head|noscript|script|title|style|header|footer|aside)[\w\W]*?>[\w\W]*?<\/\1>/gi, '')
-		.replace(/<(meta|input|img)[\w\W]*?>/gi, '')
-		.replace(/<[^\/\\]*?[\/\\]>/gi, '')
-		.replace(/<\/?(div|br|hr|p|article|section|h\d)[^>]*?>/gi, '\n')
-		.replace(/<\/?[\w\-_]+[^<>]*?>/gi, '')
-		.replace(/\s*[\r\n]+\s*/g, '\n')
-	;
-	return {
-		speak: "Get webpage content: " + url,
-		reply: content,
-		exit: false
-	};
+	var content;
+
+	for (let i = retryMax; i > 0; i --) {
+		try {
+			content = await getWebpage(requestOptions);
+			content = ('\n' + content + '\n')
+				.replace(/<![^>]*?>/gi, '')
+				.replace(/<(head|noscript|script|title|style|header|footer|aside|select|option)[\w\W]*?>[\w\W]*?<\/\1>/gi, '')
+				.replace(/<(input|img|textarea)[\w\W]*?>/gi, ' ')
+				.replace(/<[^\/\\]*?[\/\\]>/gi, '')
+				.replace(/<\/?(div|br|hr|p|article|section|h\d)[^>]*?>/gi, '\n')
+				.replace(/<\/?[\w\-_]+[^<>]*?>/gi, '')
+				.replace(/\s*[\r\n]+\s*/g, '\n')
+			;
+			return {
+				speak: "Get webpage content: " + url,
+				reply: content,
+				exit: false
+			};
+		}
+		catch (err) {
+			if (i > 1) {
+				console.error("Get webpage \"" + queries.join(', ') + "\" failed:" + (err.message || err.msg || err))
+				await wait(1000);
+				console.error('Retry searching...');
+				continue;
+			}
+			return {
+				speak: "Get webpage \"" + queries.join(', ') + "\" failed:" + (err.message || err.msg || err),
+				reply: "failed",
+				exit: false
+			};
+		}
+	}
 };
 
 module.exports = command;

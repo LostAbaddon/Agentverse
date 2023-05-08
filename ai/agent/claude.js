@@ -111,6 +111,12 @@ const showAIResponse = response => {
 	if (!!response.speak) {
 		print("Talking to YOU: ", response.speak.replace(/[\r\n]+/g, '\n'), 'log');
 	}
+	if (!!response.command && !!response.command) {
+		print("Jobs to do: ", '', 'info');
+		for (let cmd of response.command) {
+			print("- ", cmd[0] + '(' + JSON.stringify(cmd[1]) + ')', 'info');
+		}
+	}
 };
 const executeCommands = async (commands) => {
 	var task_complete = true, replies = [], count = 0;
@@ -461,7 +467,7 @@ class ClaudeAgent extends AbstractAgent {
 	}
 	async continueMission (workflow, replies, heat) {
 		if (!replies || replies.length === 0) {
-			replies = workflow.missionContinueEmpty;
+			replies = workflow.missionContinue;
 		}
 		else {
 			if (!!workflow.missionContinue) {

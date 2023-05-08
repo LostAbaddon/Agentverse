@@ -124,6 +124,9 @@ const scrabGoogle = (query) => new Promise((res, rej) => {
 });
 
 command.execute = async (type, caller, target) => {
+	var retryMax = config.setting?.retry || 1;
+	if (!(retryMax > 1)) retryMax = 1;
+
 	var result = {};
 	var queries = [];
 	for (let key in target) {
@@ -132,27 +135,35 @@ command.execute = async (type, caller, target) => {
 		}
 	}
 
-	try {
-		await Promise.all(queries.map(async query => {
-			result[query] = await scrabGoogle(query);
-		}));
-		var reply = [];
-		for (let target in result) {
-			reply.push('Search Google for "' + target + '" got:\n' + result[target]);
+	for (let i = retryMax; i > 0; i --) {
+		try {
+			await Promise.all(queries.map(async query => {
+				result[query] = await scrabGoogle(query);
+			}));
+			var reply = [];
+			for (let target in result) {
+				reply.push('Google results for "' + target + '" are:\n' + result[target]);
+			}
+			reply = reply.join('\n\n');
+			return {
+				speak: "Search Google for \"" + queries.join(', ') + "\" finished.",
+				reply: reply,
+				exit: false
+			};
 		}
-		reply = reply.join('\n\n');
-		return {
-			speak: reply,
-			reply: reply,
-			exit: false
-		};
-	}
-	catch (err) {
-		return {
-			speak: "Search Google for \"" + queries.join(', ') + "\" failed.",
-			reply: "failed",
-			exit: false
-		};
+		catch (err) {
+			if (i > 1) {
+				console.error("Search Google for \"" + queries.join(', ') + "\" failed:" + (err.message || err.msg || err))
+				await wait(1000);
+				console.error('Retry searching...');
+				continue;
+			}
+			return {
+				speak: "Search Google for \"" + queries.join(', ') + "\" failed:" + (err.message || err.msg || err),
+				reply: "failed",
+				exit: false
+			};
+		}
 	}
 };
 
