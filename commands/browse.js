@@ -32,7 +32,9 @@ const command = {
 		'browse_webpage',
 		'browse_page',
 		'extract_article_details',
-		'extract_details'
+		'extract_details',
+		'obtained_article_details',
+		'obtained_details',
 	]
 };
 
