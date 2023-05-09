@@ -19,6 +19,8 @@ const PREFIX_HUMAN = "Human: ";
 const PREFIX_AI = "Assistant: ";
 const MaxEmptyLoop = 5;
 
+const TEST = false;
+
 const print = (hint, content, type="info") => {
 	var cmd = !!PrintStyle[type] ? type : 'info';
 	var style = PrintStyle[type] || type;
@@ -329,11 +331,15 @@ class ClaudeAgent extends AbstractAgent {
 						},
 						data,
 					});
-					let fs = require('node:fs/promises');
-					const { join } = require('node:path');
-					let idx = global._writeIdx || 0;
-					await fs.writeFile(join(process.cwd(), 'test', 'send-' + idx + '.txt'), current, 'utf-8');
-					global._writeIdx = idx + 1;
+					if (TEST) {
+						try {
+							let fs = require('node:fs/promises');
+							const { join } = require('node:path');
+							let idx = global._writeIdx || 0;
+							await fs.writeFile(join(process.cwd(), 'test', 'send-' + idx + '.txt'), current, 'utf-8');
+							global._writeIdx = idx + 1;
+						} catch {}
+					}
 					break;
 				}
 				catch (err) {
