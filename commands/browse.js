@@ -20,10 +20,20 @@ if (!!config.extensions?.google_search?.proxy) {
 const command = {
 	"name": "Browse Website",
 	"cmd": "browse_website",
-	"alias": ['browse', 'website', 'webpage', 'browse_web', 'browse_site', 'browse_webpage', 'browse_page'],
 	"args": {
 		"url": "url"
-	}
+	},
+	"alias": [
+		'browse',
+		'website',
+		'webpage',
+		'browse_web',
+		'browse_site',
+		'browse_webpage',
+		'browse_page',
+		'extract_article_details',
+		'extract_details'
+	]
 };
 
 const getWebpage = (requestOptions) => new Promise((res, rej) => {

@@ -6,7 +6,7 @@ const command = {
 command.execute = (type, caller, reason) => {
 	return {
 		speak: "Nothing to do.",
-		reply: "done",
+		noReply: true
 	};
 };
 

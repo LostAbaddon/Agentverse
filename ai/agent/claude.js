@@ -50,7 +50,7 @@ const normalize = content => {
 const analyzeCommands = content => {
 	var json = [], last = '';
 	content = '\n' + (content || '').split(/\r*\n\r*/).join('\n\n') + '\n';
-	content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1|:\s*[\[\{]+([\w\W]*?)[\]\}]+[^\[\]\{\}]*?\n/gi, (match, _, name, value) => {
+	content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1?|:\s*[\[\{]+([\w\W]*?)[\]\}]+[^\[\]\{\}]*?\n/gi, (match, _, name, value) => {
 		if (!!name) {
 			let m = match.match(/^\W*([\w_ ]+)/);
 			name = m[1];
@@ -85,7 +85,7 @@ const analyzeCommands = content => {
 };
 const analyzeRole = role => {
 	role = role
-		.replace(/^(#*|\d+\.)*\s*/, '')
+		.replace(/^(#*\s*|\-\s*|\+\s*|\*\s*|\d+\.\s*)*\s*/, '')
 		.trim()
 		.replace(/[\*_`'"!\?\\\/]/gi, '')
 	;
@@ -111,7 +111,7 @@ const showAIResponse = response => {
 	if (!!response.command && !!response.command.length) {
 		print("Jobs to do: ", '', 'info');
 		for (let cmd of response.command) {
-			print("- ", cmd[0] + '(' + JSON.stringify(cmd[1]) + ')', 'info');
+			print("- ", cmd[0] + '(' + JSON.stringify(cmd[1]) + ')', 'bold blue');
 		}
 	}
 };
@@ -141,13 +141,12 @@ const executeCommands = async (commands) => {
 			else {
 				argText = ' : ' + argText.join(', ');
 			}
-			print('Execute command: ', info.name + '(' + name + ')' + argText, 'bold blue');
 			try {
 				let result = await Commands.executeCommands('claude', {}, info.command, args);
 				if (!!result.speak) {
 					print("Execute command " + info.name + ' completed with respond: ', result.speak, 'info');
 				}
-				if (result.exit !== true) {
+				if (result.exit !== true && !result.noReply) {
 					replies.push("## Command (" + name + ': ' + raw + ') returned\n\n' + result.reply);
 				}
 				if (result.exit === false) {
@@ -166,8 +165,7 @@ const executeCommands = async (commands) => {
 const chooseResult = (history, language) => {
 	var reply = 'Mission Completed.';
 	if (history.length > 0) {
-		history.sort((a, b) => b[0] - a[0]);
-		reply = history[0][1];
+		reply = history.join('\n\n');
 		if (language.match(/\b\s*(汉语|中文|chinese)\s*$/i)) {
 			reply = reply
 				.replace(/\s*,\s*/gi, '，')
@@ -497,16 +495,8 @@ class ClaudeAgent extends AbstractAgent {
 				emptyLoop = 0;
 			}
 
-			if (!!answer) {
-				if (!!answer.speak) history.push([loops, answer.speak]);
-				if (!!answer.thoughts) {
-					if (completed) {
-						history.push([loops - 0.9, answer.thoughts]);
-					}
-					else {
-						history.push([loops - 1.1, answer.thoughts]);
-					}
-				}
+			if (!!answer && !!answer.speak) {
+				history.push(answer.speak);
 			}
 
 			if (completed) {
@@ -538,16 +528,8 @@ class ClaudeAgent extends AbstractAgent {
 					emptyLoop = 0;
 				}
 
-				if (!!answer) {
-					if (!!answer.speak) history.push([loops, answer.speak]);
-					if (!!answer.thoughts) {
-						if (completed) {
-							history.push([loops - 0.9, answer.thoughts]);
-						}
-						else {
-							history.push([loops - 1.1, answer.thoughts]);
-						}
-					}
+				if (!!answer && !!answer.speak) {
+					history.push(answer.speak);
 				}
 
 				if (completed) {
