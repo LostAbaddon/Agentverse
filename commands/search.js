@@ -128,12 +128,17 @@ command.execute = async (type, caller, target) => {
 	if (!(retryMax > 1)) retryMax = 1;
 
 	var result = {};
-	var queries = [];
+	var queries = [], prepare = [];
 	for (let key in target) {
-		if (!!key.match(/\b(args?|name|q|query|s|search|f|find)\b/i)) {
+		let value = target[key];
+		if ((value * 1) + '' !== value && !['true', 'false'].includes(value.toLowerCase())) {
+			prepare.push(value);
+		}
+		if (!!key.match(/\b(args?|name|q|query|s|search|f|find|keywords?)\b/i)) {
 			queries.push(target[key]);
 		}
 	}
+	if (queries.length === 0) queries = prepare;
 
 	for (let i = retryMax; i > 0; i --) {
 		try {

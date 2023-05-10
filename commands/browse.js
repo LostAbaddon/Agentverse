@@ -62,13 +62,16 @@ command.execute = async (type, caller, target) => {
 	var retryMax = config.setting?.retry || 1;
 	if (!(retryMax > 1)) retryMax = 1;
 
-	var url;
+	var url, prepare;
 	for (let key in target) {
-		if (key.match(/\b(url|web|site|query|target)\b/i)) {
-			url = target[key];
+		let value = target[key];
+		if (value.match(/^https?:\/\//)) prepare = value;
+		if (key.match(/\b(url|web|site|query|target|link)\b/i)) {
+			url = encodeURI(target[key]);
 			break;
 		}
 	}
+	if (!url) url = prepare;
 	var requestOptions = Object.assign({}, DefaultOptions, { url });
 	var content;
 

@@ -111,58 +111,11 @@ const showAIResponse = response => {
 		print("Talking to YOU: ", response.speak.replace(/[\r\n]+/g, '\n'), 'log');
 	}
 	if (!!response.command && !!response.command.length) {
-		print("Jobs to do: ", '', 'info');
+		print("Jobs to do: ", '', 'bold blue');
 		for (let cmd of response.command) {
 			print("- ", cmd[0] + '(' + JSON.stringify(cmd[1]) + ')', 'bold blue');
 		}
 	}
-};
-const executeCommands = async (commands) => {
-	var task_complete = true, replies = [];
-
-	if (!!commands && !!commands.length) {
-		let tasks = commands.map(async cmd => {
-			var [name, args, raw] = cmd;
-			var action = name.replace(/[ \t\-\.]/g, '_').toLowerCase();
-			var info = Commands.list.filter(c => c.command === action)[0];
-			if (!info) {
-				let alias = Commands.alias[action];
-				info = Commands.list.filter(c => c.command === alias)[0];
-			}
-			if (!info) {
-				print("Invalid command: ", name, 'error');
-				return;
-			}
-			var argText = [];
-			for (let key in args) {
-				argText.push(key + '="' + args[key] + '"');
-			}
-			if (argText.length === 0) {
-				argText = '';
-			}
-			else {
-				argText = ' : ' + argText.join(', ');
-			}
-			try {
-				let result = await Commands.executeCommands('claude', {}, info.command, args);
-				if (!!result.speak) {
-					print("Execute command " + info.name + ' completed with respond: ', result.speak, 'info');
-				}
-				if (result.exit !== true && !result.noReply) {
-					replies.push("## Command (" + name + ': ' + raw + ') returned\n\n' + result.reply);
-				}
-				if (result.exit === false) {
-					task_complete = false;
-				}
-			}
-			catch (err) {
-				print('Execute command ' + info.name + ' failed: ', err.message || err.msg || err, 'error');
-			}
-		});
-		await Promise.all(tasks);
-	}
-
-	return [replies, task_complete];
 };
 const chooseResult = (history, language) => {
 	var reply = 'Mission Completed.';
@@ -238,6 +191,20 @@ class ClaudeAgent extends AbstractAgent {
 			this.#retryMax = config.retry;
 		}
 	}
+	copy () {
+		var ai = new ClaudeAgent(null, {
+			url: this.#api_url,
+			client: this.#client_id,
+			key: this.#api_key,
+			model: this.#model,
+			temperature: this.#temperature,
+			max_token: this.#max_token,
+			retry: this.#retryMax,
+		});
+		ai.addKnowledge(this.#knowledge);
+		return ai;
+	}
+
 	async loadKnowledge (filepath) {
 		var knowledge;
 		try {
@@ -252,6 +219,25 @@ class ClaudeAgent extends AbstractAgent {
 		knowledge = knowledge.split(/[\r\n]+/).map(k => k.trim()).filter(k => !!k);
 		this.#knowledge = knowledge;
 		print('Knowledge loaded: ', filepath, 'log');
+	}
+	addKnowledge (knowledge) {
+		var count = 0;
+		if (String.is(knowledge)) {
+			if (!!knowledge) {
+				this.#knowledge.push(knowledge);
+				count = 1;
+			}
+		}
+		else if (Array.is(knowledge)) {
+			knowledge.forEach(k => {
+				if (!k) return;
+				this.#knowledge.push(k);
+				count ++;
+			});
+		}
+		if (count > 0) {
+			print('Knowledge added: ', count, 'log');
+		}
 	}
 
 	async send (prompt, heat=1.0, addtion=true) {
@@ -372,7 +358,7 @@ class ClaudeAgent extends AbstractAgent {
 		return [answer, loop, timespent];
 	}
 
-	async ask (data, heat) {
+	async ask (data, heat=1.0) {
 		var prompt = data.data;
 		var [answer, loop, timespent] = await this.send(prompt, heat);
 		this.#memory.push([prompt, answer]);
@@ -389,7 +375,7 @@ class ClaudeAgent extends AbstractAgent {
 
 		var answer, loop, timespent;
 		try {
-			[answer, loop, timespent] = await this.send(prompt, 1);
+			[answer, loop, timespent] = await this.send(prompt, 0.5);
 		}
 		catch (err) {
 			print("Analyze role failed: ", err.message || err.msg || err, 'error');
@@ -462,6 +448,65 @@ class ClaudeAgent extends AbstractAgent {
 		this.#memory.push([replies, answer]);
 		return [result, loop, timespent];
 	}
+	async executeCommands (commands) {
+		var task_complete = true, replies = [], loops = 0, time = Date.now();
+
+		if (!!commands && !!commands.length) {
+			let tasks = commands.map(async cmd => {
+				var time = Date.now();
+				var [name, args, raw] = cmd;
+				var action = Commands.normalizeCommandName(name);
+				var command = Commands.getCommandName(action);
+				if (!command) {
+					print('No match command and AI is trying to find the matchest command: ', action + ' (' + name + ')', 'warn');
+					let ai = this.copy();
+					let prompt = ClaudeAgent.Prompts.matchCommand
+						.replace(/<command_name>/gi, action)
+						.replace(/<command_list>/gi, '- ' + Object.keys(Commands.list).join('\n- '))
+					;
+					let rename = await ai.send(prompt, 0.5, false);
+					loops += rename[1];
+					rename = rename[0];
+					print("AI found the matchest command for the unmatched one: ", action + " -> " + rename + ' (' + name + ')', 'info');
+					command = Commands.getCommandName(rename);
+					if (!command) {
+						print("Invalid command: ", name, 'error');
+						return;
+					}
+				}
+				var argText = [];
+				for (let key in args) {
+					argText.push(key + '="' + args[key] + '"');
+				}
+				if (argText.length === 0) {
+					argText = '';
+				}
+				else {
+					argText = ' : ' + argText.join(', ');
+				}
+				try {
+					let result = await Commands.executeCommands('claude', {}, command.command, args);
+					time = (Date.now() - time) / 1000;
+					if (!!result.speak) {
+						print("Execute command " + command.name + ' completed with respond in ' + time + 's : ', result.speak, 'info');
+					}
+					if (result.exit !== true && !result.noReply) {
+						replies.push("## Command (" + name + ': ' + raw + ') returned\n\n' + result.reply);
+					}
+					if (result.exit === false) {
+						task_complete = false;
+					}
+				}
+				catch (err) {
+					print('Execute command ' + command.name + ' failed: ', err.message || err.msg || err, 'error');
+				}
+			});
+			await Promise.all(tasks);
+		}
+		time = Date.now() - time;
+
+		return [replies, task_complete, loops, time];
+	}
 	async task (task) {
 		var loops = 0, totalTime = 0, max = task.max;
 		if (!max) max = Infinity;
@@ -493,7 +538,11 @@ class ClaudeAgent extends AbstractAgent {
 			msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
 			print("SYSTEM: ", msg, 'info');
 
-			[replies, completed] = await executeCommands(answer.command);
+			[replies, completed, loop, timespent] = await this.executeCommands(answer.command);
+			loops += loop;
+			totalTime += timespent;
+			msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
+			print("SYSTEM: ", msg, 'info');
 			if (!replies || !replies.length) {
 				emptyLoop ++;
 			}
@@ -526,7 +575,11 @@ class ClaudeAgent extends AbstractAgent {
 				msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
 				print("SYSTEM: ", msg, 'info');
 
-				[replies, completed] = await executeCommands(answer.command);
+				[replies, completed, loop, timespent] = await this.executeCommands(answer.command);
+				loops += loop;
+				totalTime += timespent;
+				msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
+				print("SYSTEM: ", msg, 'info');
 				if (!replies || !replies.length) {
 					emptyLoop ++;
 				}
