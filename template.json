@@ -37,7 +37,8 @@
 			"key": "empty",
 			"model": "claude-v1",
 			"temperature": 1,
-			"max_token": 1024
+			"max_token": 1024,
+			"interval": 300
 		},
 		"retry": 3
 	},

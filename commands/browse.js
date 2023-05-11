@@ -88,6 +88,7 @@ command.execute = async (type, caller, target) => {
 				.replace(/\s*[\r\n]+\s*/g, '\n')
 				.replace(/^[\s\n]+|[\s\n]+$/g, '')
 			;
+			content = content + '\n\nNow use the page content to continue the mission.';
 			return {
 				speak: "Get webpage content: " + url + " (" + content.length + ' bytes)',
 				reply: content,

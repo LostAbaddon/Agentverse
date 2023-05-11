@@ -19,7 +19,7 @@ const PREFIX_HUMAN = "Human: ";
 const PREFIX_AI = "Assistant: ";
 const MaxEmptyLoop = 5;
 
-const TEST = false;
+const TEST = true;
 
 const print = (hint, content, type="info") => {
 	var cmd = !!PrintStyle[type] ? type : 'info';
@@ -117,22 +117,6 @@ const showAIResponse = response => {
 		}
 	}
 };
-const chooseResult = (history, language) => {
-	var reply = 'Mission Completed.';
-	if (history.length > 0) {
-		reply = history.join('\n\n');
-		if (language.match(/\b\s*(汉语|中文|chinese)\s*$/i)) {
-			reply = reply
-				.replace(/\s*,\s*/gi, '，')
-				.replace(/\s*!\s*/gi, '！')
-				.replace(/\s*\?\s*/gi, '？')
-				.replace(/\s*;\s*/gi, '；')
-				.replace(/\s*:\s*/gi, '：')
-			;
-		}
-	}
-	return reply;
-};
 
 class ClaudeAgent extends AbstractAgent {
 	#api_key = '';
@@ -142,6 +126,7 @@ class ClaudeAgent extends AbstractAgent {
 	#api_url = "";
 	#client_id = "";
 	#retryMax = 1;
+	#interval = 300;
 
 	#knowledge = [];
 	#memory = [];
@@ -190,6 +175,9 @@ class ClaudeAgent extends AbstractAgent {
 		if (config.retry > 0) {
 			this.#retryMax = config.retry;
 		}
+		if (config.interval > 0) {
+			this.#interval = config.interval;
+		}
 	}
 	copy () {
 		var ai = new ClaudeAgent(null, {
@@ -200,6 +188,7 @@ class ClaudeAgent extends AbstractAgent {
 			temperature: this.#temperature,
 			max_token: this.#max_token,
 			retry: this.#retryMax,
+			interval: this.#interval,
 		});
 		ai.addKnowledge(this.#knowledge);
 		return ai;
@@ -332,6 +321,8 @@ class ClaudeAgent extends AbstractAgent {
 					print("Fetch response failed: ", err.message || err.msg || err, "error");
 					if (i > 1) {
 						logger.info('retry...');
+						timespent += this.#interval;
+						await wait(this.#interval);
 					}
 					else {
 						throw err;
@@ -390,7 +381,7 @@ class ClaudeAgent extends AbstractAgent {
 		info.role = answer[0];
 		info.template = answer[1];
 		if (!ClaudeAgent.Jobs.includes(info.template)) info.template = 'default';
-		info.language = answer[2];
+		info.language = answer[2] || 'English';
 
 		print("Cloude thought the suitest ROLE for this task is: ", info.role, 'log');
 		print("           the suitest Workflow for this task is: ", info.template, 'log');
@@ -449,14 +440,14 @@ class ClaudeAgent extends AbstractAgent {
 		return [result, loop, timespent];
 	}
 	async executeCommands (commands) {
-		var task_complete = true, replies = [], loops = 0, time = Date.now();
+		var task_complete = true, replies = [], loops = 0, timespent = 0;
 
 		if (!!commands && !!commands.length) {
-			let tasks = commands.map(async cmd => {
-				var time = Date.now();
-				var [name, args, raw] = cmd;
-				var action = Commands.normalizeCommandName(name);
-				var command = Commands.getCommandName(action);
+			for (let cmd of commands) {
+				let time = Date.now();
+				let [name, args, raw] = cmd;
+				let action = Commands.normalizeCommandName(name);
+				let command = Commands.getCommandName(action);
 				if (!command) {
 					print('No match command and AI is trying to find the matchest command: ', action + ' (' + name + ')', 'warn');
 					let ai = this.copy();
@@ -465,16 +456,19 @@ class ClaudeAgent extends AbstractAgent {
 						.replace(/<command_list>/gi, '- ' + Object.keys(Commands.list).join('\n- '))
 					;
 					let rename = await ai.send(prompt, 0.5, false);
+					timespent += Date.now() - time;
 					loops += rename[1];
 					rename = rename[0];
 					print("AI found the matchest command for the unmatched one: ", action + " -> " + rename + ' (' + name + ')', 'info');
 					command = Commands.getCommandName(rename);
 					if (!command) {
 						print("Invalid command: ", name, 'error');
-						return;
+						continue;
 					}
+					await wait(this.#interval);
+					time = Date.now();
 				}
-				var argText = [];
+				let argText = [];
 				for (let key in args) {
 					argText.push(key + '="' + args[key] + '"');
 				}
@@ -486,7 +480,9 @@ class ClaudeAgent extends AbstractAgent {
 				}
 				try {
 					let result = await Commands.executeCommands('claude', {}, command.command, args);
-					time = (Date.now() - time) / 1000;
+					time = Date.now() - time;
+					timespent += time;
+					time /= 1000;
 					if (!!result.speak) {
 						print("Execute command " + command.name + ' completed with respond in ' + time + 's : ', result.speak, 'info');
 					}
@@ -496,16 +492,46 @@ class ClaudeAgent extends AbstractAgent {
 					if (result.exit === false) {
 						task_complete = false;
 					}
+					await wait(this.#interval);
 				}
 				catch (err) {
 					print('Execute command ' + command.name + ' failed: ', err.message || err.msg || err, 'error');
 				}
-			});
-			await Promise.all(tasks);
+			}
 		}
-		time = Date.now() - time;
 
-		return [replies, task_complete, loops, time];
+		return [replies, task_complete, loops, timespent];
+	}
+	async generateReply (history, language) {
+		var reply = 'Mission Completed.';
+		if (history.length > 0) {
+			reply = history.join('\n\n');
+		}
+		try {
+			let ai = this.copy();
+			let prompt = ClaudeAgent.Prompts.translate
+				.replace(/<language>/gi, language)
+				.replace(/<content>/gi, reply)
+			;
+			let translate = await ai.send(prompt, 0.5, false);
+			translate = translate[0];
+			if (!!translate) reply = translate;
+		}
+		catch (err) {
+			let msg = err.message || err.msg || err;
+			print('Mission Failed: ', msg, 'error');
+			console.log(err);
+		}
+		if (language.match(/\b\s*(汉语|中文|chinese)\s*$/i)) {
+			reply = reply
+				.replace(/\s*,\s*/gi, '，')
+				.replace(/\s*!\s*/gi, '！')
+				.replace(/\s*\?\s*/gi, '？')
+				.replace(/\s*;\s*/gi, '；')
+				.replace(/\s*:\s*/gi, '：')
+			;
+		}
+		return reply;
 	}
 	async task (task) {
 		var loops = 0, totalTime = 0, max = task.max;
@@ -515,7 +541,10 @@ class ClaudeAgent extends AbstractAgent {
 		var history = [];
 		var role, template, language;
 		var workflow;
-		var heatDecay, heatMin, heatMax, heat;
+		var heatDecay = parseInt(ClaudeAgent.Prompts.missionHeatDecayRate || 1);
+		var heatMin = parseInt(ClaudeAgent.Prompts.missionHeatMin || 0);
+		var heatMax = parseInt(ClaudeAgent.Prompts.missionHeatMax || 1);
+		var heat = heatMax;
 
 		try {
 			[answer, loop, timespent] = await this.analyzeRole(task.data);
@@ -526,10 +555,7 @@ class ClaudeAgent extends AbstractAgent {
 			language = answer.language;
 			workflow = ClaudeAgent.Workflow[template] || ClaudeAgent.Workflow.default;
 			workflow = Object.assign({}, ClaudeAgent.Workflow.default, workflow);
-			heatDecay = parseInt(workflow.missionHeatDecayRate || 1);
-			heatMin = parseInt(workflow.missionHeatMin || 0);
-			heatMax = parseInt(workflow.missionHeatMax || 1);
-			heat = heatMax;
+			await wait(this.#interval);
 
 			[answer, loop, timespent] = await this.startMission(workflow, role, task.data, heat);
 			loops += loop;
@@ -537,12 +563,19 @@ class ClaudeAgent extends AbstractAgent {
 			showAIResponse(answer);
 			msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
 			print("SYSTEM: ", msg, 'info');
+			await wait(this.#interval);
 
-			[replies, completed, loop, timespent] = await this.executeCommands(answer.command);
-			loops += loop;
-			totalTime += timespent;
-			msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
-			print("SYSTEM: ", msg, 'info');
+			if (!!answer.command && !!answer.command.length) {
+				[replies, completed, loop, timespent] = await this.executeCommands(answer.command);
+				loops += loop;
+				totalTime += timespent;
+				msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
+				print("SYSTEM: ", msg, 'info');
+				await wait(this.#interval);
+			}
+			else {
+				replies = null;
+			}
 			if (!replies || !replies.length) {
 				emptyLoop ++;
 			}
@@ -550,20 +583,23 @@ class ClaudeAgent extends AbstractAgent {
 				emptyLoop = 0;
 			}
 
-			if (!!answer && !!answer.speak) {
-				history.push(answer.speak);
+			if (!!answer) {
+				let ctx = answer.speak || answer.thoughts || answer.reasoning;
+				if (!!ctx) history.push(ctx);
 			}
 
 			if (completed) {
-				return chooseResult(history, language);
+				return await this.generateReply(history, language);
 			}
 			if (loops >= max) {
 				print("Mission Failed: ", 'AI call times exhausted.', 'error');
-				return 'Mission Failed: AI call times exhausted.';
+				history.push('Mission Failed: AI call times exhausted.');
+				return await this.generateReply(history, language);
 			}
 			if (emptyLoop >= MaxEmptyLoop) {
 				print("Mission maybe completed: ", 'AI didn\'t response actively.', 'warn');
-				return 'Mission maybe completed: AI didn\'t response actively.';
+				history.push('Mission maybe completed: AI didn\'t response actively.');
+				return await this.generateReply(history, language);
 			}
 
 			while (1) {
@@ -574,12 +610,19 @@ class ClaudeAgent extends AbstractAgent {
 				showAIResponse(answer);
 				msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
 				print("SYSTEM: ", msg, 'info');
+				await wait(this.#interval);
 
-				[replies, completed, loop, timespent] = await this.executeCommands(answer.command);
-				loops += loop;
-				totalTime += timespent;
-				msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
-				print("SYSTEM: ", msg, 'info');
+				if (!!answer.command && !!answer.command.length) {
+					[replies, completed, loop, timespent] = await this.executeCommands(answer.command);
+					loops += loop;
+					totalTime += timespent;
+					msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
+					print("SYSTEM: ", msg, 'info');
+					await wait(this.#interval);
+				}
+				else {
+					replies = [];
+				}
 				if (!replies || !replies.length) {
 					emptyLoop ++;
 				}
@@ -587,20 +630,23 @@ class ClaudeAgent extends AbstractAgent {
 					emptyLoop = 0;
 				}
 
-				if (!!answer && !!answer.speak) {
-					history.push(answer.speak);
+				if (!!answer) {
+					let ctx = answer.speak || answer.thoughts || answer.reasoning;
+					if (!!ctx) history.push(ctx);
 				}
 
 				if (completed) {
-					return chooseResult(history, language);
+					return await this.generateReply(history, language);
 				}
 				if (loops >= max) {
 					print("Mission Failed: ", 'AI call times exhausted.', 'error');
-					return 'Mission Failed: AI call times exhausted.';
+					history.push('Mission Failed: AI call times exhausted.');
+					return await this.generateReply(history, language);
 				}
 				if (emptyLoop >= MaxEmptyLoop) {
 					print("Mission maybe completed: ", 'AI didn\'t response actively.', 'warn');
-					return 'Mission maybe completed: AI didn\'t response actively.';
+					history.push('Mission maybe completed: AI didn\'t response actively.');
+					return await this.generateReply(history, language);
 				}
 			}
 		}
@@ -608,7 +654,8 @@ class ClaudeAgent extends AbstractAgent {
 			let msg = err.message || err.msg || err;
 			print('Mission Failed: ', msg, 'error');
 			console.log(err);
-			return 'mission failed: ' + msg;
+			history.push('mission failed: ' + msg);
+			return await this.generateReply(history, language);
 		}
 
 		return answer;

@@ -149,7 +149,7 @@ command.execute = async (type, caller, target) => {
 			for (let target in result) {
 				reply.push(result[target]);
 			}
-			reply = reply.join('\n\n');
+			reply = reply.join('\n\n') + '\n\nNow use these search results to continue the mission.';
 			return {
 				speak: "Search Google for \"" + queries.join(', ') + "\" finished.",
 				reply: reply,
