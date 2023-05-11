@@ -1,5 +1,4 @@
-const request = require('request')
-
+const request = require('request');
 const config = require('../config.json');
 
 const DefaultOptions = {
@@ -38,7 +37,7 @@ const command = {
 	]
 };
 
-const getWebpage = (requestOptions) => new Promise((res, rej) => {
+command.getWebpage = (requestOptions) => new Promise((res, rej) => {
 	request(requestOptions, (err, resp, data) => {
 		if (!!err) {
 			rej(err);
@@ -67,17 +66,18 @@ command.execute = async (type, caller, target) => {
 		let value = target[key];
 		if (value.match(/^https?:\/\//)) prepare = value;
 		if (key.match(/\b(url|web|site|query|target|link)\b/i)) {
-			url = encodeURI(target[key]);
+			url = value;
 			break;
 		}
 	}
 	if (!url) url = prepare;
+	url = encodeURI(url);
 	var requestOptions = Object.assign({}, DefaultOptions, { url });
-	var content;
 
+	var content;
 	for (let i = retryMax; i > 0; i --) {
 		try {
-			content = await getWebpage(requestOptions);
+			content = await command.getWebpage(requestOptions);
 			content = ('\n' + content + '\n')
 				.replace(/<![^>]*?>/gi, '')
 				.replace(/<(head|noscript|script|title|style|header|footer|aside|select|option)[\w\W]*?>[\w\W]*?<\/\1>/gi, '')
@@ -96,14 +96,15 @@ command.execute = async (type, caller, target) => {
 			};
 		}
 		catch (err) {
+			let msg = err.message || err.msg || err;
+			console.error("Get webpage \"" + url + "\" failed:" + msg)
 			if (i > 1) {
-				console.error("Get webpage \"" + url + "\" failed:" + (err.message || err.msg || err))
 				await wait(1000);
 				console.error('Retry browsing...');
 				continue;
 			}
 			return {
-				speak: "Get webpage \"" + url + "\" failed:" + (err.message || err.msg || err),
+				speak: "Get webpage \"" + url + "\" failed:" + msg,
 				reply: "failed",
 				exit: false
 			};
