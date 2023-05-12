@@ -47,7 +47,8 @@
 		"google_search": {
 			"proxy": "some_proxy",
 			"count": 10,
-			"apikey": "key"
+			"apikey": "google_apikey",
+			"cx": "programmable_search_engine"
 		}
 	}
 }

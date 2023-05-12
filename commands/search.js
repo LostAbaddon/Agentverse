@@ -118,7 +118,29 @@ const scrabGoogle = async (query) => {
 		content.push('- URL: ' + item[0] + ctx);
 		if (content.length >= limit) return true;
 	});
-	return content.join('\n')
+	return content.join('\n');
+};
+const searchGoogle = async (query) => {
+	query = encodeURIComponent(query);
+
+	var limit = config.extensions?.google_search?.count;
+	if (!(limit > 0)) limit = 10;
+	var url = `https://customsearch.googleapis.com/customsearch/v1?cx=${config.extensions.google_search.cx}&q=${query}&key=${config.extensions.google_search.apikey}`;
+	var requestOptions = Object.assign({}, DefaultOptions, { url });
+
+	var content = await getWebpage(requestOptions);
+	content = JSON.parse(content);
+	if (!content.items || !content.items.length) {
+		return 'nothing found.';
+	}
+
+	content = content.items.map(item => {
+		var list = ['- URL: ' + item.link];
+		list.push('  Title: ' + item.title);
+		list.push('  Description: ' + item.snippet.replace(/[\r\n]/g, ''));
+		return list.join('\n')
+	}).join('\n');
+	return content;
 };
 
 command.execute = async (type, caller, target) => {
@@ -137,11 +159,24 @@ command.execute = async (type, caller, target) => {
 		}
 	}
 	if (!query) query = prepare;
+	if (!query) {
+		return {
+			speak: "Empty Google Search.",
+			reply: 'empty search',
+			exit: false
+		};
+	}
 
+	var useAPI = !!config.extensions.google_search.apikey && !!config.extensions.google_search.cx;
 	var result;
 	for (let i = retryMax; i > 0; i --) {
 		try {
-			result = await scrabGoogle(query);
+			if (useAPI) {
+				result = await searchGoogle(query);
+			}
+			else {
+				result = await scrabGoogle(query);
+			}
 			result = result + '\n\nNow use these search results to continue the mission.';
 			return {
 				speak: "Search Google for \"" + query + "\" finished.",
