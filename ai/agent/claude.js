@@ -1,5 +1,5 @@
 require('../../kernel/log.js');
-const { readdir } = require('node:fs/promises');
+const { readdir, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const setStyle = _('CL.SetStyle');
 const Logger = _("Utils.Logger");
@@ -308,10 +308,8 @@ class ClaudeAgent extends AbstractAgent {
 					});
 					if (TEST) {
 						try {
-							let fs = require('node:fs/promises');
-							const { join } = require('node:path');
 							let idx = global._writeIdx || 0;
-							await fs.writeFile(join(process.cwd(), 'out', 'send-' + idx + '.txt'), current, 'utf-8');
+							await writeFile(join(process.cwd(), 'out', 'send-' + idx + '.txt'), current, 'utf-8');
 							global._writeIdx = idx + 1;
 						} catch {}
 					}
@@ -465,7 +463,7 @@ class ClaudeAgent extends AbstractAgent {
 						print("Invalid command: ", name, 'error');
 						continue;
 					}
-					Commands.alias[action] = rename;
+					Commands.addAlias(action, rename);
 					await wait(this.#interval);
 					time = Date.now();
 				}

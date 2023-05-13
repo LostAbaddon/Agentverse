@@ -18,9 +18,14 @@ if (!!config.extensions?.google_search?.proxy) {
 }
 
 const command = {
-	"name": "Search",
-	"cmd": "google_search",
-	"alias": ['google', 'search', 'web_search'],
+	"name": "Scholar",
+	"cmd": "google_scholar_search",
+	"alias": [
+		'google_scholar',
+		'scholar_search',
+		'googlescholar',
+		'scholarsearch',
+	],
 	"args": {
 		"query": "query"
 	}
@@ -39,106 +44,87 @@ const parseParams = param => {
 	});
 	return json;
 };
+const clearHTML = content => {
+	return content
+		.replace(/<a[^>]*?href="[^"]*?"[^>]*?>[\w\W]*?<\/a>/gi, '')
+		.replace(/<\/?[^>]*?>/gi, '')
+		.replace(/^[\s\r\n]+|[\s\r\n]+$/gi, '')
+		.replace(/[\s\r\n]+/gi, ' ')
+		.replace(/&#(\d+);/g, (match, code) => {
+			var char;
+			try {
+				char = String.fromCharCode(code * 1);
+			}
+			catch {
+				char = match;
+			}
+			return char;
+		})
+	;
+};
 
 const scrabGoogle = async (query) => {
 	query = encodeURIComponent(query);
 
 	var limit = config.extensions?.google_search?.count;
 	if (!(limit > 0)) limit = 10;
-	var url = `https://www.google.com/search?q=${query}&hl=en-US&start=0&num=${limit}&ie=UTF-8&oe=UTF-8&gws_rd=ssl`;
+	var url = `https://scholar.google.com/scholar?hl=en&q=${query}`;
 	var requestOptions = Object.assign({}, DefaultOptions, { url });
 
 	var content = await getWebpage(requestOptions);
 
 	content = content
 		.replace(/<![^>]*?>/gi, '')
-		.replace(/<(noscript|script|title|style|header|footer|head|ul|ol)[\w\W]*?>[\w\W]*?<\/\1>/gi, '')
-		.replace(/<(meta|input|img)[\w\W]*?>/gi, '')
+		.replace(/\/\*+[\w\W]*?\*+\//gi, '')
+		.replace(/<(noscript|script|head|link|rel|title|style|header|footer|form|button|ul|ol|li|option|select|table)[\w\W]*?>[\w\W]*?<\/\1>/gi, '')
+		.replace(/<(meta|input|img|link|rel)[\w\W]*?>/gi, '')
 		.replace(/<[^\/\\]*?[\/\\]>/gi, '')
 		.replace(/<\/?(html|body)[^>]*?>/gi, '')
-		.replace(/<\/?span[^>]*?>/gi, '')
-		.replace(/<\/?(div|br|hr)[^>]*?>/gi, '\n')
+		.replace(/<\/?(span|lable)[^>]*?>/gi, '')
+		.replace(/<\/?(div|p|br|hr)[^>]*?>/gi, '\n')
 	;
-	content = content.replace(/<a[^>]*href=('|")([^'"]*)\1[^>]*>([\w\W]*?)<\/a>/gi, (match, quote, url, inner) => {
-		if (url.match(/^https?:\/\/.*?\.google/)) return '';
-		if (url.match(/^\s*\//) && !url.match(/^\s*\/url\?/)) return '';
-		return match;
-	});
-	while (true) {
-		let temp = content.replace(/<([\w\-_]+)[^>]*?>[\s\r\t\n]*<\/\1>/gi, '');
-		if (content === temp) break;
-		content = temp;
-	}
-	content = content
-		.replace(/^[\w\W]*?<a/i, '<a')
-		.replace(/Related searches[\w\W]*?$/i, '')
-		.replace(/[\s\r\t]*\n+[\s\r\t]*/g, '\n')
-		.replace(/\n+/g, '\n')
-	;
-
-	let result = [];
-	content.replace(/<a[^>]*?>[\s\r\n]*/gi, (match, pos) => {
-		result.push(pos);
-	});
-	result.push(content.length);
-
-	for (let i = 0; i < result.length - 1; i ++) {
-		let a = result[i], b = result[i + 1];
-		let sub = content.substring(a, b);
-		let url = sub.match(/^[\s\r\n]*<a[^>]*?href=('|")?([^'"]*?)\1[^>]*?>/i);
-		if (!url || !url[2]) continue;
-		url = parseParams(url[2]);
-		for (let key in url) {
-			let value = url[key];
-			if (value.match(/^https?/i)) {
-				url = decodeURI(value);
-				break;
-			}
-		}
-		sub = sub
-			.replace(/<h3[^>]*>/gi, '\n  Title: ')
-			.replace(/<\/h3[^>]*>/gi, '\n  Description: ')
-			.replace(/<\/?\w+[^>]*?>/gi, '')
-			.replace(/[\s\r\t]*\n+[\s\r\t]*/g, '\n')
-			.replace(/\n+/g, '\n')
-			.replace(/^\n+|\n+$/g, '')
-			.replace(/\n  Title:\s*\n\s*/gi, '\n  Title: ')
-			.replace(/\n  Description:\s*\n\s*/gi, '\n  Description: ')
-			.replace(/&#(\d+);/g, (match, code) => {
-				var char;
-				try {
-					char = String.fromCharCode(code * 1);
-				}
-				catch {
-					char = match;
-				}
-				return char;
-			})
-		;
-		result[i] = [url, sub];
-	}
-	result.pop();
-
-	if (!result.length) {
+	var pos = content.match(/<h3/i);
+	if (!pos || !(pos.index >= 0)) {
 		return 'nothing found.';
 	}
-
-	content = [];
-	result.some(item => {
-		if (!item || !item[0]) return;
-		var ctx = item[1] || '';
-		ctx = ctx.split('\n');
-		ctx = ctx.map(line => line.replace(/^\-\s*/, '\n  ')).join('\n  ');
-		ctx = ctx
-			.replace(/Title:\s*\n\s*/gi, 'Title: ')
-			.replace(/Description:\s*\n\s*/gi, 'Description: ')
-			.replace(/\n\s*Title:\s*\n\s*/gi, '\n  Title: ')
-			.replace(/\n\s*Description:\s*\n\s*/gi, '\n  Description: ')
-		;
-		content.push('- URL: ' + item[0] + '\n  ' + ctx);
-		if (content.length >= limit) return true;
+	pos = pos.index;
+	content = content.substring(pos);
+	content = content.replace(/<a[^>]*?href="\/[^>]*?>/gi, '<a>');
+	pos = [Infinity, Infinity];
+	content.replace(/<a[^>]*?>\s*create\s*alert\s*<\/a>/gi, (match, p) => {
+		pos[0] = p;
 	});
-	return content.join('\n');
+	content.replace(/<center[^>]*?>[\w\W]*?<\/center>/gi, (match, p) => {
+		pos[1] = p;
+	});
+	pos = Math.min(...pos);
+	if (pos < content.length) content = content.substring(0, pos);
+
+	pos = [];
+	content.replace(/<h3/gi, (match, p) => {
+		pos.push(p);
+		return match;
+	});
+	pos.push(content.length);
+	var result = [];
+	for (let i = 0; i < pos.length - 1; i ++) {
+		let start = pos[i], end = pos[i + 1];
+		let part = content.substring(start, end);
+		let url = '', title = '';
+		part = part.replace(/<h3[^>]*?>([\w\W]*?)<\/h3>/, (match, inner) => {
+			if (!inner) return '';
+			var link = inner.match(/<a[^>]*?href="([^"]*?)"[^>]*?>([\w\W]*?)<\/a>/i);
+			if (!link) return '';
+			url = link[1];
+			title = link[2];
+			return '';
+		});
+		if (!url || !title) continue;
+		title = clearHTML(title);
+		part = clearHTML(part);
+		result.push('- URL: ' + url + '\n  Title: ' + title + '\n  Description: ' + part);
+	}
+	return result.join('\n');
 };
 const searchGoogle = async (query) => {
 	query = encodeURIComponent(query);
@@ -181,13 +167,14 @@ command.execute = async (type, caller, target) => {
 	if (!query) query = prepare;
 	if (!query) {
 		return {
-			speak: "Empty Google Search.",
-			reply: 'empty search',
+			speak: "Empty Google Scholar Search.",
+			reply: 'empty scholar search',
 			exit: false
 		};
 	}
 
 	var useAPI = !!config.extensions.google_search.apikey && !!config.extensions.google_search.cx;
+	useAPI = false;
 	var result;
 	for (let i = retryMax; i > 0; i --) {
 		try {
@@ -197,23 +184,23 @@ command.execute = async (type, caller, target) => {
 			else {
 				result = await scrabGoogle(query);
 			}
-			result = result + '\n\nNow use these search results to continue the mission.';
+			result = result + '\n\nNow use these scholar search results to continue the mission.';
 			return {
-				speak: "Search Google for \"" + query + "\" finished.",
+				speak: "Google Scholar Search for \"" + query + "\" finished.",
 				reply: result,
 				exit: false
 			};
 		}
 		catch (err) {
 			let msg = err.message || err.msg || err;
-			console.error("Search Google \"" + query + "\" failed:" + msg)
+			console.error("Google Scholar Search \"" + query + "\" failed:" + msg)
 			if (i > 1) {
 				await wait(1000);
 				console.error('Retry searching...');
 				continue;
 			}
 			return {
-				speak: "Search Google \"" + query + "\" failed:" + msg,
+				speak: "Google Scholar Search \"" + query + "\" failed:" + msg,
 				reply: "failed",
 				exit: false
 			};

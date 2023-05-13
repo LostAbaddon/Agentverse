@@ -1,4 +1,6 @@
-const { readdir } = require('node:fs/promises');
+const { readdir, writeFile, readFile } = require('node:fs/promises');
+const { join } = require('node:path');
+const ExtraAlias = {};
 
 const Commands = {
 	list: {},
@@ -7,11 +9,26 @@ const Commands = {
 const commands = {};
 
 Commands.loadCommands = async () => {
-	var list = await readdir(__dirname);
+	var list, extra;
+	try {
+		list = await readdir(__dirname);
+	}
+	catch {
+		list = [];
+	}
+	try {
+		extra = await readFile(join(process.cwd(), 'out', 'dynamicalias.txt'), 'utf-8');
+		extra = JSON.parse(extra);
+	}
+	catch {
+		extra = {};
+	}
+	Commands.alias = Object.assign({}, Commands.alias, extra);
 	list.forEach(filename => {
 		if (!filename) return;
 		if (!!filename.match(/^index\.js$/i)) return;
 		var cmd = require('./' + filename);
+		if (!cmd || !!cmd.disable || !cmd.cmd || !cmd.name) return;
 		Commands.list[cmd.cmd] = {
 			name: cmd.name,
 			command: cmd.cmd,
@@ -62,6 +79,11 @@ Commands.getCommandName = name => {
 		cmd = Commands.list[alias];
 	}
 	return cmd;
+};
+Commands.addAlias = (alias, cmd) => {
+	Commands.alias[alias] = cmd;
+	ExtraAlias[alias] = cmd;
+	writeFile(join(process.cwd(), 'out', 'dynamicalias.txt'), JSON.stringify(ExtraAlias), 'utf-8');
 };
 
 module.exports = Commands;
