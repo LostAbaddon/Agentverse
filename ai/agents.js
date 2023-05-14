@@ -1,7 +1,6 @@
 const { readFile, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const Axios = require('axios');
-const preparePath = _("Utils").preparePath;
 const AbstractAgent = require('./agent/abstract.js');
 const Commands = require('../commands');
 

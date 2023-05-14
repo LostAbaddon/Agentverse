@@ -1,6 +1,9 @@
+const { writeFile, readFile } = require('node:fs/promises');
+const { join } = require('node:path');
 const request = require('request');
 const { getWebpage } = require('./browse');
 const config = require('../config.json');
+const outputFolder = join(process.cwd(), 'out', 'search');
 
 const DefaultOptions = {
 	method: 'GET',
@@ -187,6 +190,17 @@ command.execute = async (type, caller, target) => {
 		};
 	}
 
+	try {
+		let saved = await readFile(join(outputFolder, query + '.txt'), 'utf-8');
+		if (!!saved) {
+			return {
+				speak: "Search Google for \"" + query + "\" finished.",
+				reply: saved,
+				exit: false
+			};
+		}
+	} catch {}
+
 	var useAPI = !!config.extensions.google_search.apikey && !!config.extensions.google_search.cx;
 	var result;
 	for (let i = retryMax; i > 0; i --) {
@@ -198,6 +212,9 @@ command.execute = async (type, caller, target) => {
 				result = await scrabGoogle(query);
 			}
 			result = result + '\n\nNow use these search results to continue the mission.';
+			writeFile(join(outputFolder, query + '.txt'), result, 'utf-8').catch(err => {
+				console.error('Save Search Result into file failed: ' + (err.message || err.msg || err));
+			});
 			return {
 				speak: "Search Google for \"" + query + "\" finished.",
 				reply: result,

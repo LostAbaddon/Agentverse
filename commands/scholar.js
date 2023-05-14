@@ -1,6 +1,9 @@
+const { writeFile, readFile } = require('node:fs/promises');
+const { join } = require('node:path');
 const request = require('request');
 const { getWebpage } = require('./browse');
 const config = require('../config.json');
+const outputFolder = join(process.cwd(), 'out', 'scholar');
 
 const DefaultOptions = {
 	method: 'GET',
@@ -126,28 +129,6 @@ const scrabGoogle = async (query) => {
 	}
 	return result.join('\n');
 };
-const searchGoogle = async (query) => {
-	query = encodeURIComponent(query);
-
-	var limit = config.extensions?.google_search?.count;
-	if (!(limit > 0)) limit = 10;
-	var url = `https://customsearch.googleapis.com/customsearch/v1?key=${config.extensions.google_search.apikey}&cx=${config.extensions.google_search.cx}&q=${query}&sort=date-sdate:d:s`;
-	var requestOptions = Object.assign({}, DefaultOptions, { url });
-
-	var content = await getWebpage(requestOptions);
-	content = JSON.parse(content);
-	if (!content.items || !content.items.length) {
-		return 'nothing found.';
-	}
-
-	content = content.items.map(item => {
-		var list = ['- URL: ' + item.link];
-		list.push('  Title: ' + item.title);
-		list.push('  Description: ' + item.snippet.replace(/[\r\n]/g, ''));
-		return list.join('\n')
-	}).join('\n');
-	return content;
-};
 
 command.execute = async (type, caller, target) => {
 	var retryMax = config.setting?.retry || 1;
@@ -173,18 +154,26 @@ command.execute = async (type, caller, target) => {
 		};
 	}
 
-	var useAPI = !!config.extensions.google_search.apikey && !!config.extensions.google_search.cx;
-	useAPI = false;
+	try {
+		let saved = await readFile(join(outputFolder, query + '.txt'), 'utf-8');
+		if (!!saved) {
+			return {
+				speak: "Google Scholar Search for \"" + query + "\" finished.",
+				reply: saved,
+				exit: false
+			};
+		}
+	} catch {}
+
+
 	var result;
 	for (let i = retryMax; i > 0; i --) {
 		try {
-			if (useAPI) {
-				result = await searchGoogle(query);
-			}
-			else {
-				result = await scrabGoogle(query);
-			}
+			result = await scrabGoogle(query);
 			result = result + '\n\nNow use these scholar search results to continue the mission.';
+			writeFile(join(outputFolder, query + '.txt'), result, 'utf-8').catch(err => {
+				console.error('Save Scholar Search Result into file failed: ' + (err.message || err.msg || err));
+			});
 			return {
 				speak: "Google Scholar Search for \"" + query + "\" finished.",
 				reply: result,

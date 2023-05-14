@@ -1,9 +1,9 @@
 const SocksProxyAgent = require('socks-proxy-agent');
-
 const server = require('./server.js').server;
 const socket = require('./server.js').console;
 const AI = require('./ai');
 const Agents = require("./ai/agents.js");
+const prepareSystem = require('./prepare');
 
 const Logger = _("Utils.Logger");
 const logger = new Logger('Center');
@@ -173,6 +173,8 @@ const dealSingletonEvent = async tasks => {
 };
 
 const init = async () => {
+	await prepareSystem();
+
 	var args = [].map.call(process.argv, a => a);
 	args.shift();
 	args.shift();

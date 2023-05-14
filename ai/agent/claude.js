@@ -19,7 +19,7 @@ const PREFIX_HUMAN = "Human: ";
 const PREFIX_AI = "Assistant: ";
 const MaxEmptyLoop = 5;
 
-const TEST = true;
+const LogInOut = true;
 
 const print = (hint, content, type="info") => {
 	var cmd = !!PrintStyle[type] ? type : 'info';
@@ -306,10 +306,13 @@ class ClaudeAgent extends AbstractAgent {
 						},
 						data,
 					});
-					if (TEST) {
+					if (LogInOut) {
 						try {
 							let idx = global._writeIdx || 0;
-							await writeFile(join(process.cwd(), 'out', 'send-' + idx + '.txt'), current, 'utf-8');
+							await Promise.all([
+								writeFile(join(process.cwd(), 'out', 'log', 'output-' + idx + '.txt'), current, 'utf-8'),
+								writeFile(join(process.cwd(), 'out', 'log', 'input-' + idx + '.txt'), reply, 'utf-8')
+							]);
 							global._writeIdx = idx + 1;
 						} catch {}
 					}
