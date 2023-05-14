@@ -265,6 +265,7 @@ command.execute = async (type, caller, target) => {
 			else {
 				content = defaultParse(content);
 			}
+			if (!content) content = 'Empty web page, no content.';
 			content = content + '\n\nNow use the page content to continue the mission.';
 			writeFile(join(outputFolder, url.replace(/[:\\\/]+/g, '_') + '.txt'), content, 'utf-8').catch(err => {
 				console.error('Save Scholar Search Result into file failed: ' + (err.message || err.msg || err));
