@@ -486,7 +486,7 @@ class ClaudeAgent extends AbstractAgent {
 						print("Execute command " + command.name + ' completed with respond in ' + time + 's : ', result.speak, 'info');
 					}
 					if (result.exit !== true && !result.noReply) {
-						replies.push("## Command (" + name + ': ' + raw + ') returned\n\n' + result.reply);
+						replies.push("## Command (" + name + ': ' + raw + ') returned:\n' + result.reply);
 					}
 					if (result.exit === false) {
 						task_complete = false;

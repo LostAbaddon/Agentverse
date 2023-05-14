@@ -44,6 +44,7 @@ Commands.loadCommands = async () => {
 Commands.generateCommands = () => {
 	var list = [], i = 1;
 	for (let cmd in Commands.list) {
+		cmd = Commands.list[cmd];
 		let command = i + '. ' + cmd.name + ': "' + cmd.command + '", ';
 		let args = [];
 		for (let arg in cmd.args) {
