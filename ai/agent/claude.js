@@ -8,6 +8,7 @@ const { readFile, loadPrompt, sendRequest, md2json } = require('../agents.js');
 const AbstractAgent = require('./abstract.js');
 const Commands = require('../../commands');
 const project = require('../../package.json');
+const logFolder = join(process.cwd(), 'out', 'log');
 
 const PrintStyle = {
 	log: "bold green",
@@ -309,10 +310,15 @@ class ClaudeAgent extends AbstractAgent {
 					if (LogInOut) {
 						try {
 							let idx = global._writeIdx || 0;
-							await Promise.all([
-								writeFile(join(process.cwd(), 'out', 'log', 'output-' + idx + '.txt'), current, 'utf-8'),
-								writeFile(join(process.cwd(), 'out', 'log', 'input-' + idx + '.txt'), reply, 'utf-8')
-							]);
+							try {
+								await Promise.all([
+									writeFile(join(logFolder, 'output-' + idx + '.txt'), current, 'utf-8'),
+									writeFile(join(logFolder, 'input-' + idx + '.txt'), JSON.stringify(reply), 'utf-8')
+								]);
+							}
+							catch (err) {
+								console.error('Save log file failed: ' + (err.message || err.msg || err));
+							}
 							global._writeIdx = idx + 1;
 						} catch {}
 					}
@@ -655,7 +661,7 @@ class ClaudeAgent extends AbstractAgent {
 		catch (err) {
 			let msg = err.message || err.msg || err;
 			print('Mission Failed: ', msg, 'error');
-			console.log(err);
+			console.log(err.stack);
 			history.push('mission failed: ' + msg);
 			return await this.generateReply(history, language);
 		}
