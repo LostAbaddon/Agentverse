@@ -1,7 +1,7 @@
 const { writeFile, readFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const request = require('request');
-const { getWebpage } = require('./browse');
+const { getWebpage, clearHTML } = require('./browse');
 const config = require('../config.json');
 const outputFolder = join(process.cwd(), 'out', 'scholar');
 
@@ -21,7 +21,7 @@ if (!!config.extensions?.google_search?.proxy) {
 }
 
 const command = {
-	"name": "Scholar",
+	"name": "Google Scholar",
 	"cmd": "google_scholar_search",
 	"alias": [
 		'google_scholar',
@@ -46,24 +46,6 @@ const parseParams = param => {
 		json[key] = item;
 	});
 	return json;
-};
-const clearHTML = content => {
-	return content
-		.replace(/<a[^>]*?href="[^"]*?"[^>]*?>[\w\W]*?<\/a>/gi, '')
-		.replace(/<\/?[^>]*?>/gi, '')
-		.replace(/^[\s\r\n]+|[\s\r\n]+$/gi, '')
-		.replace(/[\s\r\n]+/gi, ' ')
-		.replace(/&#(\d+);/g, (match, code) => {
-			var char;
-			try {
-				char = String.fromCharCode(code * 1);
-			}
-			catch {
-				char = match;
-			}
-			return char;
-		})
-	;
 };
 
 const scrabGoogle = async (query) => {

@@ -1,5 +1,8 @@
+const { writeFile, readFile } = require('node:fs/promises');
+const { join } = require('node:path');
 const request = require('request');
 const config = require('../config.json');
+const outputFolder = join(process.cwd(), 'out', 'browse');
 
 const DefaultOptions = {
 	method: 'GET',
@@ -37,6 +40,137 @@ const command = {
 	]
 };
 
+const parseSimpleMarkdown = content => {
+	while (true) {
+		let levs = [];
+		content.replace(/<h(\d)[^>]*?>/gi, (match, lev) => {
+			lev = lev * 1;
+			if (!levs.includes(lev)) levs.push(lev);
+		});
+		levs.sort((a, b) => a - b);
+		let temp = content
+			.replace(/<h(\d)[^>]*?>([\w\W]*?)<\/h\1>/gi, (match, lev, ctx) => {
+				lev = lev * 1;
+				var l = levs.indexOf(lev);
+				var h = '';
+				for (let i = 0; i <= l; i ++) {
+					h += '#';
+				}
+				return '\n' + h + ' ' + ctx + '\n';
+			})
+			.replace(/<a[^>]*?href="([\w\W]*?)"[^>]*?>([^<]*?)<\/a>/gi, (match, url, inner) => {
+				url = url.replace(/^[\s\r\n]*|[\s\r\n]*$/gi, '');
+				inner = inner.replace(/^[\s\r\n]*|[\s\r\n]*$/gi, '');
+				if (!!url.match(/^\//)) return inner;
+				return '[' + inner + '](' + url + ')'
+			})
+			.replace(/<\/?(b|strong)[^>]*?>/gi, '**')
+			.replace(/<\/?(i|em)[^>]*?>/gi, '*')
+			.replace(/<ul[^>]*?>([\w\W]*?)<\/ul>/gi, (match, ctx) => {
+				var result = [];
+				ctx.replace(/<li[^>]*?>([\w\W]*?)<\/li>/gi, (match, c) => {
+					result.push('- ' + c);
+				});
+				return '\n' + result.join('\n') + '\n';
+			})
+			.replace(/<ol[^>]*?>([\w\W]*?)<\/ol>/gi, (match, ctx) => {
+				var result = [];
+				var idx = 1;
+				ctx.replace(/<li[^>]*?>([\w\W]*?)<\/li>/gi, (match, c) => {
+					result.push(idx + '. ' + c);
+					idx ++;
+				});
+				return '\n' + result.join('\n') + '\n';
+			})
+		;
+		if (content === temp) break;
+		content = temp;
+	}
+	return content;
+};
+const defaultParse = content => {
+	var low = content.toLowerCase();
+	var start, end;
+	start = low.indexOf('<article');
+	if (start >= 0) {
+		end = low.lastIndexOf('<\/article');
+		content = content.substring(start, end);
+	}
+	else {
+		start = low.indexOf('<section');
+		if (start >= 0) {
+			end = low.lastIndexOf('<\/section');
+			content = content.substring(start, end);
+		}
+	}
+	content = parseSimpleMarkdown(content)
+		.replace(/<\/?(div|br|hr|p|article|section)[^>]*?>/gi, '\n')
+		.replace(/<\/?[\w\-_]+[^<>]*?>/gi, '')
+		.replace(/\s*[\r\n]+\s*/g, '\n')
+		.replace(/^[\s\n]+|[\s\n]+$/g, '')
+	;
+	return 'Content:\n' + content;
+};
+const parseJianshu = content => {
+	var low = content.toLowerCase();
+	var start = low.indexOf('<article');
+	var end = low.indexOf('<\/article');
+	if (start < 0 || end < 0) return defaultParse(content);
+	var pos = low.substring(0, start).lastIndexOf('<h1');
+	if (pos >= 0) start = pos;
+	pos = low.substring(end).indexOf('>');
+	if (pos >= 0) end += pos + 1;
+	content = content.substring(start, end);
+
+	var title = '';
+	content = content
+		.replace(/<h1[^>]*?>([\w\W]*?)<\/h1>/, (match, t) => {
+			if (!!t) title = 'Title: ' + parseSimpleMarkdown(t);
+			return '';
+		})
+		.replace(/<a[^>]*?href="([\w\W]*?)"[^>]*?>/gi, (match, url) => {
+			url = url.replace(/^[\s\r\n]*|[\s\r\n]*$/gi, '');
+			var m = url.match(/^https?:\/\/links\.jianshu\.\w+\/go\?to=([\w\W]*)$/i);
+			if (!m || !m[1]) return match;
+			return '<a href="' + decodeURIComponent(m[1]) + '">';
+		})
+	;
+	content = parseSimpleMarkdown(content)
+		.replace(/<\/?(div|br|hr|p|article|section)[^>]*?>/gi, '\n')
+		.replace(/<\/?[\w\-_]+[^<>]*?>/gi, '')
+		.replace(/\s*[\r\n]+\s*/g, '\n')
+		.replace(/^[\s\n]+|[\s\n]+$/g, '')
+	;
+	content = 'Content:\n' + content;
+	if (!!title) content = title + '\n' + content;
+	return content;
+};
+const parseZhihu = content => {
+	content = content
+		.replace(/<(div|span|p)([^>]*?)>/gi, (match, tag, attrs) => {
+			var m = attrs.match(/class="([\w\W]*?)"/i);
+			if (!m || !m[1]) return '<' + tag + '>';
+			return '<' + tag + ' class="' + m[1] + '">';
+		})
+	;
+	var pos = content.match(/<(div|span|p) class="[^"]*?Rich/i);
+	if (!pos) return defaultParse(content);
+	pos = pos.index;
+	content = content.substring(pos);
+	pos = content.match(/<(div|span|p) class="[^"]*?ContentItem/i);
+	if (!!pos) {
+		content = content.substring(0, pos.index);
+	}
+	content = parseSimpleMarkdown(content)
+		.replace(/<\/?(div|br|hr|p|article|section)[^>]*?>/gi, '\n')
+		.replace(/<\/?[\w\-_]+[^<>]*?>/gi, '')
+		.replace(/\s*[\r\n]+\s*/g, '\n')
+		.replace(/^[\s\n]+|[\s\n]+$/g, '')
+	;
+	content = 'Content:\n' + content;
+	return content;
+};
+
 command.getWebpage = (requestOptions) => new Promise((res, rej) => {
 	request(requestOptions, (err, resp, data) => {
 		if (!!err) {
@@ -56,7 +190,39 @@ command.getWebpage = (requestOptions) => new Promise((res, rej) => {
 		}
 	});
 });
-
+command.prepareHTML = content => {
+	var low = content.toLowerCase();
+	var start = low.indexOf('<body');
+	var end = low.indexOf('<\/body>');
+	content = content.substring(start, end);
+	content = content
+		.replace(/<body[^>]*?>/i, '')
+		.replace(/<!\-+[\w\W]*?\-+>/gi, '')
+		.replace(/\/\*+[\w\W]*?\*+\//gi, '')
+		.replace(/<(noscript|script|style|video|audio|source|header|footer|aside|nav|select|option|form|svg|path|object|button)[\w\W]*?>[\w\W]*?<\/\1>/gi, '')
+		.replace(/<(meta|img|input|textarea)[\w\W]*?>/gi, ' ')
+		.replace(/<[^\/\\]*?[\/\\]>/gi, '')
+	;
+	return content;
+};
+command.clearHTML = content => {
+	return content
+		.replace(/<a[^>]*?href="[^"]*?"[^>]*?>[\w\W]*?<\/a>/gi, '')
+		.replace(/<\/?[^>]*?>/gi, '')
+		.replace(/^[\s\r\n]+|[\s\r\n]+$/gi, '')
+		.replace(/[\s\r\n]+/gi, ' ')
+		.replace(/&#(\d+);/g, (match, code) => {
+			var char;
+			try {
+				char = String.fromCharCode(code * 1);
+			}
+			catch {
+				char = match;
+			}
+			return char;
+		})
+	;
+};
 command.execute = async (type, caller, target) => {
 	var retryMax = config.setting?.retry || 1;
 	if (!(retryMax > 1)) retryMax = 1;
@@ -72,23 +238,37 @@ command.execute = async (type, caller, target) => {
 	}
 	if (!url) url = prepare;
 	url = encodeURI(url);
-	var requestOptions = Object.assign({}, DefaultOptions, { url });
 
+	try {
+		let saved = await readFile(join(outputFolder, url.replace(/[:\\\/]+/g, '_') + '.txt'), 'utf-8');
+		if (!!saved) {
+			return {
+				speak: "Get webpage content: " + url + " (" + saved.length + ' bytes)',
+				reply: saved,
+				exit: false
+			};
+		}
+	} catch {}
+
+	var requestOptions = Object.assign({}, DefaultOptions, { url });
 	var content;
 	for (let i = retryMax; i > 0; i --) {
 		try {
 			content = await command.getWebpage(requestOptions);
-			content = ('\n' + content + '\n')
-				.replace(/<![^>]*?>/gi, '')
-				.replace(/<(head|noscript|script|title|style|header|footer|aside|select|option)[\w\W]*?>[\w\W]*?<\/\1>/gi, '')
-				.replace(/<(input|img|textarea)[\w\W]*?>/gi, ' ')
-				.replace(/<[^\/\\]*?[\/\\]>/gi, '')
-				.replace(/<\/?(div|br|hr|p|article|section|h\d)[^>]*?>/gi, '\n')
-				.replace(/<\/?[\w\-_]+[^<>]*?>/gi, '')
-				.replace(/\s*[\r\n]+\s*/g, '\n')
-				.replace(/^[\s\n]+|[\s\n]+$/g, '')
-			;
+			content = command.prepareHTML(content);
+			if (!!url.match(/https?:\/\/([\w\-_\.]+\.)?jianshu\.\w+/i)) {
+				content = parseJianshu(content);
+			}
+			else if (!!url.match(/https?:\/\/([\w\-_\.]+\.)?zhihu\.\w+/i)) {
+				content = parseZhihu(content);
+			}
+			else {
+				content = defaultParse(content);
+			}
 			content = content + '\n\nNow use the page content to continue the mission.';
+			writeFile(join(outputFolder, url.replace(/[:\\\/]+/g, '_') + '.txt'), content, 'utf-8').catch(err => {
+				console.error('Save Scholar Search Result into file failed: ' + (err.message || err.msg || err));
+			});
 			return {
 				speak: "Get webpage content: " + url + " (" + content.length + ' bytes)',
 				reply: content,
