@@ -240,10 +240,10 @@ command.execute = async (type, caller, target) => {
 	url = encodeURI(url);
 
 	try {
-		let saved = await readFile(join(outputFolder, url.replace(/[:\\\/]+/g, '_') + '.txt'), 'utf-8');
+		let saved = await readFile(join(outputFolder, url.replace(/[:\\\/\?=&\$\.!\+]+/g, '_') + '.txt'), 'utf-8');
 		if (!!saved) {
 			return {
-				speak: "Get webpage content: " + url + " (" + saved.length + ' bytes)',
+				speak: "Get web page content: " + url + " (" + saved.length + ' bytes)',
 				reply: saved,
 				exit: false
 			};
@@ -265,27 +265,31 @@ command.execute = async (type, caller, target) => {
 			else {
 				content = defaultParse(content);
 			}
-			if (!content) content = 'Empty web page, no content.';
-			content = content + '\n\nNow use the page content to continue the mission.';
-			writeFile(join(outputFolder, url.replace(/[:\\\/]+/g, '_') + '.txt'), content, 'utf-8').catch(err => {
-				console.error('Save Scholar Search Result into file failed: ' + (err.message || err.msg || err));
+			if (!content || !!content.match(/^Content:[\s\r\n]*$/)) {
+				content = 'Empty web page, no content.\n\nContinue the rest of the tasks and goals, please.';
+			}
+			else {
+				content = content + '\n\nNow use the page content to continue the tasks and goals, please.';
+			}
+			writeFile(join(outputFolder, url.replace(/[:\\\/\?=&\$\.!\+]+/g, '_') + '.txt'), content, 'utf-8').catch(err => {
+				console.error('Save web page content into file failed: ' + (err.message || err.msg || err));
 			});
 			return {
-				speak: "Get webpage content: " + url + " (" + content.length + ' bytes)',
+				speak: "Get web page content: " + url + " (" + content.length + ' bytes)',
 				reply: content,
 				exit: false
 			};
 		}
 		catch (err) {
 			let msg = err.message || err.msg || err;
-			console.error("Get webpage \"" + url + "\" failed:" + msg)
+			console.error("Get web page \"" + url + "\" failed:" + msg)
 			if (i > 1) {
 				await wait(1000);
 				console.error('Retry browsing...');
 				continue;
 			}
 			return {
-				speak: "Get webpage \"" + url + "\" failed:" + msg,
+				speak: "Get web page \"" + url + "\" failed:" + msg,
 				reply: "failed",
 				exit: false
 			};

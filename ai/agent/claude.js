@@ -487,7 +487,7 @@ class ClaudeAgent extends AbstractAgent {
 					argText = ' : ' + argText.join(', ');
 				}
 				try {
-					let result = await Commands.executeCommands('claude', {}, command.command, args);
+					let result = await Commands.executeCommands('claude', this, command.command, args);
 					time = Date.now() - time;
 					timespent += time;
 					time /= 1000;
@@ -528,7 +528,7 @@ class ClaudeAgent extends AbstractAgent {
 		catch (err) {
 			let msg = err.message || err.msg || err;
 			print('Mission Failed: ', msg, 'error');
-			console.log(err);
+			console.error(err.stack);
 		}
 		if (language.match(/\b\s*(汉语|中文|chinese)\s*$/i)) {
 			reply = reply
