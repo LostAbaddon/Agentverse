@@ -95,6 +95,9 @@ const connectConsole = () => {
 		.setParam('<data>')
 		.addOption("--knowledge -k <knowledge> >> Set knowledge")
 		.addOption("--max -m <max> >> Max execution times")
+		.add('action')
+		.setParam('<action> >> Action name')
+		.addOption("--option -o <option> >> Action options")
 		.on("command", async (param, socket) => {
 			var quests = [];
 			var tasks = param.mission;

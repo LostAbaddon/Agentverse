@@ -20,7 +20,8 @@ const PREFIX_HUMAN = "Human: ";
 const PREFIX_AI = "Assistant: ";
 const MaxEmptyLoop = 5;
 
-const LogInOut = true;
+const RunTest = false;
+const LogInOut = !RunTest && true;
 
 const print = (hint, content, type="info") => {
 	var cmd = !!PrintStyle[type] ? type : 'info';
@@ -53,7 +54,7 @@ const normalize = content => {
 const analyzeCommands = content => {
 	var json = [], last = '';
 	content = '\n' + (content || '').split(/\r*\n\r*/).join('\n\n') + '\n';
-	content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1?|:\s*[\[\{]+([\w\W]*?)[\]\}]+[^\[\]\{\}]*?\n/gi, (match, _, name, value) => {
+	content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1?|:\s*[\[\{\s]+([\w\W]*?)[\]\}\s]+[^\[\]\{\}]*?\n/gi, (match, _, name, value) => {
 		if (!!name) {
 			let m = match.match(/^\W*([\w_ ]+)/);
 			name = m[1];
@@ -293,46 +294,59 @@ class ClaudeAgent extends AbstractAgent {
 				max_tokens_to_sample: this.#max_token,
 			};
 
-			if (!global.isSingleton) logger.info('Send request to Claude...');
-			for (let i = this.#retryMax; i > 0; i --) {
+			if (RunTest) {
+				let idx = global._writeIdx || 0;
 				try {
-					reply = await sendRequest({
-						url: this.#api_url,
-						method: "POST",
-						headers: {
-							Accept: "application/json",
-							"Content-Type": "application/json",
-							Client: this.#client_id,
-							"X-API-Key": this.#api_key,
-						},
-						data,
-					});
-					if (LogInOut) {
-						try {
-							let idx = global._writeIdx || 0;
-							try {
-								await Promise.all([
-									writeFile(join(logFolder, 'output-' + idx + '.txt'), current, 'utf-8'),
-									writeFile(join(logFolder, 'input-' + idx + '.txt'), JSON.stringify(reply), 'utf-8')
-								]);
-							}
-							catch (err) {
-								console.error('Save log file failed: ' + (err.message || err.msg || err));
-							}
-							global._writeIdx = idx + 1;
-						} catch {}
-					}
-					break;
+					reply = await readFile(join(logFolder, 'input-' + idx + '.txt'), 'utf-8');
+					reply = JSON.parse(reply);
 				}
 				catch (err) {
-					print("Fetch response failed: ", err.message || err.msg || err, "error");
-					if (i > 1) {
-						logger.info('retry...');
-						timespent += this.#interval;
-						await wait(this.#interval);
+					console.error('Read record file failed: ' + (err.message || err.msg || err));
+				}
+				global._writeIdx = idx + 1;
+			}
+			else {
+				if (!global.isSingleton) logger.info('Send request to Claude...');
+				for (let i = this.#retryMax; i > 0; i --) {
+					try {
+						reply = await sendRequest({
+							url: this.#api_url,
+							method: "POST",
+							headers: {
+								Accept: "application/json",
+								"Content-Type": "application/json",
+								Client: this.#client_id,
+								"X-API-Key": this.#api_key,
+							},
+							data,
+						});
+						if (LogInOut) {
+							try {
+								let idx = global._writeIdx || 0;
+								try {
+									await Promise.all([
+										writeFile(join(logFolder, 'output-' + idx + '.txt'), current, 'utf-8'),
+										writeFile(join(logFolder, 'input-' + idx + '.txt'), JSON.stringify(reply), 'utf-8')
+									]);
+								}
+								catch (err) {
+									console.error('Save log file failed: ' + (err.message || err.msg || err));
+								}
+								global._writeIdx = idx + 1;
+							} catch {}
+						}
+						break;
 					}
-					else {
-						throw err;
+					catch (err) {
+						print("Fetch response failed: ", err.message || err.msg || err, "error");
+						if (i > 1) {
+							logger.info('retry...');
+							timespent += this.#interval;
+							await wait(this.#interval);
+						}
+						else {
+							throw err;
+						}
 					}
 				}
 			}
@@ -538,6 +552,12 @@ class ClaudeAgent extends AbstractAgent {
 				.replace(/\s*;\s*/gi, '；')
 				.replace(/\s*:\s*/gi, '：')
 			;
+		}
+		try {
+			await writeFile(join(logFolder, 'finalanswer.txt'), reply, 'utf-8');
+		}
+		catch (err) {
+			console.error('Save log file failed: ' + (err.message || err.msg || err));
 		}
 		return reply;
 	}
