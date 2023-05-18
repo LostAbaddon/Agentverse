@@ -20,9 +20,11 @@ class AbstractAgent {
 	send (prompt, heat, session) {}	// send request to AI backend
 	ask (prompt, heat) {}			// continue the chat
 	task (task) {}					// complete the mission automonously
+	action (action, option) {}		// extra actions
 
-	fork () {}	// fork an agent with current session
 	copy () {}	// copy a whole new agent with initial setting
+	fork () {}	// copy an agent with current knowledge
+	clone () {}	// copy an agent with current knowledge and memory
 }
 
 module.exports = AbstractAgent;

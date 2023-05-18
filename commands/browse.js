@@ -4,21 +4,6 @@ const request = require('request');
 const config = require('../config.json');
 const outputFolder = join(process.cwd(), 'out', 'browse');
 
-const DefaultOptions = {
-	method: 'GET',
-	timeout: 30000,
-	headers: {
-		'Accept': 'text/html,application/xhtml+xml,application/xml',
-		'Accept-Language': 'en',
-		'Cache-Control': 'max-age=0',
-		'Connection': 'keep-alive',
-		'DNT': 1
-	}
-};
-if (!!config.extensions?.google_search?.proxy) {
-	DefaultOptions.proxy = config.extensions.google_search.proxy;
-}
-
 const command = {
 	"name": "Browse Website",
 	"cmd": "browse_website",
@@ -223,6 +208,9 @@ command.clearHTML = content => {
 		})
 	;
 };
+command.isURL = url => {
+	return !!url.match(/^https:?\/\/[\w\-\.]+(:\d+)?(\/[\w\-\.%\/]*)?(\?[\w\-\.%=&]*)?(\#[\w\-\.%]*)?$/i);
+};
 command.execute = async (type, caller, target) => {
 	var retryMax = config.setting?.retry || 1;
 	if (!(retryMax > 1)) retryMax = 1;
@@ -238,6 +226,13 @@ command.execute = async (type, caller, target) => {
 	}
 	if (!url) url = prepare;
 	url = encodeURI(url);
+	if (!command.isURL(url)) {
+		return {
+			speak: "Web page url \"" + url + "\" is invalid.",
+			reply: "wrong url",
+			exit: false
+		};
+	}
 
 	try {
 		let saved = await readFile(join(outputFolder, url.replace(/[:\\\/\?=&\$\.!\+]+/g, '_') + '.txt'), 'utf-8');

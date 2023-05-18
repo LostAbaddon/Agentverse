@@ -18,7 +18,7 @@ const PrintStyle = {
 };
 const PREFIX_HUMAN = "Human: ";
 const PREFIX_AI = "Assistant: ";
-const MaxEmptyLoop = 5;
+const MaxEmptyLoop = 10;
 
 const RunTest = false;
 const LogInOut = !RunTest && true;
@@ -119,6 +119,47 @@ const showAIResponse = response => {
 		}
 	}
 };
+const loadPrompts = async () => {
+	if (!!ClaudeAgent.Prompts) return;
+
+	ClaudeAgent.Jobs = [];
+	var list = await readdir(join(process.cwd(), 'prompts'));
+	list = list.filter(f => {
+		var match = f.match(/^claude(.*)ini$/i)
+		if (!match) return false;
+		var mid = match[1];
+		match = mid.match(/^\-(.*)\.$/);
+		if (!match) return true;
+		mid = match[1];
+		if (!mid) return true;
+		ClaudeAgent.Jobs.push(mid);
+		return true;
+	}).map(l => l.replace(/\.ini$/i, ''));
+
+	ClaudeAgent.Workflow = {};
+	await Promise.all(list.map(async file => {
+		var data = await loadPrompt(file);
+		if (file === 'claude') {
+			ClaudeAgent.Prompts = data;
+		}
+		else {
+			ClaudeAgent.Workflow[file.replace(/^claude\-/i, '')] = data;
+		}
+	}));
+};
+const loadActions = async () => {
+	if (!!ClaudeAgent.Actions) return;
+
+	ClaudeAgent.Actions = {};
+	var list = await readdir(join(process.cwd(), 'action'));
+	list.forEach(filepath => {
+		if (!filepath.match(/^[^_]+?(_claude)?\.js$/i)) return;
+		filepath = join('..', '..', 'action', filepath);
+		var ext = require(filepath);
+		if (!ext || !ext.name) return;
+		ClaudeAgent.Actions[ext.name] = ext;
+	});
+};
 
 class ClaudeAgent extends AbstractAgent {
 	#api_key = '';
@@ -134,32 +175,10 @@ class ClaudeAgent extends AbstractAgent {
 	#memory = [];
 
 	static async loadPrompt () {
-		if (!!ClaudeAgent.Prompts) return;
-
-		ClaudeAgent.Jobs = [];
-		var list = await readdir(join(process.cwd(), 'prompts'));
-		list = list.filter(f => {
-			var match = f.match(/^claude(.*)ini$/i)
-			if (!match) return false;
-			var mid = match[1];
-			match = mid.match(/^\-(.*)\.$/);
-			if (!match) return true;
-			mid = match[1];
-			if (!mid) return true;
-			ClaudeAgent.Jobs.push(mid);
-			return true;
-		}).map(l => l.replace(/\.ini$/i, ''));
-
-		ClaudeAgent.Workflow = {};
-		await Promise.all(list.map(async file => {
-			var data = await loadPrompt(file);
-			if (file === 'claude') {
-				ClaudeAgent.Prompts = data;
-			}
-			else {
-				ClaudeAgent.Workflow[file.replace(/^claude\-/i, '')] = data;
-			}
-		}));
+		await Promise.all([
+			loadPrompts(),
+			loadActions()
+		]);
 	}
 
 	constructor (id, config) {
@@ -687,6 +706,20 @@ class ClaudeAgent extends AbstractAgent {
 		}
 
 		return answer;
+	}
+
+	async action (option) {
+		var ext = ClaudeAgent.Actions[option.action];
+		if (!ext) {
+			return "No such extension: " + option.action;
+		}
+
+		try {
+			return await ext.execute(option.option, this);
+		}
+		catch (err) {
+			return 'Action failed: ' + (err.message || err.msg || err);
+		}
 	}
 }
 

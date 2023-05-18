@@ -12,6 +12,21 @@ const config = require('./config.json');
 global.isSingleton = false;
 
 const prepareAI = async (param, config) => {
+	global.DefaultOptions = {
+		method: 'GET',
+		timeout: 30000,
+		headers: {
+			'Accept': 'text/html,application/xhtml+xml,application/xml',
+			'Accept-Language': 'en',
+			'Cache-Control': 'max-age=0',
+			// 'Connection': 'keep-alive',
+			'DNT': 1
+		}
+	};
+	if (!!config.proxy?.http) {
+		DefaultOptions.proxy = config.proxy.http;
+	}
+
 	var aiType = param.agent || config.agent;
 	if (!Agents.Agents[aiType]) {
 		aiType = config.agent;
@@ -22,14 +37,14 @@ const prepareAI = async (param, config) => {
 	var cfg = config.setting[aiType];
 	cfg.retry = config.setting.retry;
 	await AI.init({type: aiType, config: cfg});
-	if (!!config.proxy) {
+	if (!!config.proxy?.socks) {
 		try {
-			global.globalHTTPSProxy = new SocksProxyAgent.SocksProxyAgent(config.proxy);
-			global.globalHTTPSProxy.keepAlive = true;
-			global.globalHTTPSProxy.keepAliveMsecs = 1000;
+			global.globalHTTPSProxy = new SocksProxyAgent.SocksProxyAgent(config.proxy.socks);
+			// global.globalHTTPSProxy.keepAlive = true;
+			// global.globalHTTPSProxy.keepAliveMsecs = 1000;
 			global.globalHTTPSProxy.scheduling = 'lifo';
 			global.globalHTTPSProxy.options = {
-				keepAlive: true,
+				// keepAlive: true,
 				scheduling: 'lifo',
 				timeout: 5000,
 				noDelay: true
@@ -107,7 +122,7 @@ const connectConsole = () => {
 				quest.event = task.name;
 				quest.data = task.value;
 				quests.push(quest);
-				AI.show('send', task.name, task.value.data);
+				if (!!task.name && !!task.value?.data) AI.show('send', task.name, task.value?.data);
 			}
 
 			AI.show('waiting');
@@ -147,10 +162,12 @@ const dealSingletonEvent = async tasks => {
 	var result = {};
 	await Promise.all(tasks.map(async task => {
 		if (AI.events.includes(task.event)) {
-			task.data.data = task.data.data.replace(/(\\+)n/gi, (match, pre) => {
-				if (pre.length >> 1 << 1 === pre.length) return match;
-				return '\n';
-			});
+			if (!!task.data.data) {
+				task.data.data = task.data.data.replace(/(\\+)n/gi, (match, pre) => {
+					if (pre.length >> 1 << 1 === pre.length) return match;
+					return '\n';
+				});
+			}
 			let [reply, err] = await AI.call(task.event, task.data);
 			if (!!err) {
 				let e = { ok: false };

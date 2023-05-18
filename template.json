@@ -31,7 +31,10 @@
 		},
 		"console": "/tmp/console.ipc"
 	},
-	"proxy": "some_proxy",
+	"proxy": {
+		"socks": "some_proxy",
+		"http": "some_proxy"
+	},
 	"setting": {
 		"Claude": {
 			"key": "empty",

@@ -5,21 +5,6 @@ const { getWebpage } = require('./browse');
 const config = require('../config.json');
 const outputFolder = join(process.cwd(), 'out', 'search');
 
-const DefaultOptions = {
-	method: 'GET',
-	timeout: 30000,
-	headers: {
-		'Accept': 'text/html,application/xhtml+xml,application/xml',
-		'Accept-Language': 'en',
-		'Cache-Control': 'max-age=0',
-		'Connection': 'keep-alive',
-		'DNT': 1
-	}
-};
-if (!!config.extensions?.google_search?.proxy) {
-	DefaultOptions.proxy = config.extensions.google_search.proxy;
-}
-
 const command = {
 	"name": "Search",
 	"cmd": "google_search",

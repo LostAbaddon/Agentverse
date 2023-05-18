@@ -4,21 +4,6 @@ const config = require('../config.json');
 const browse = require('./browse');
 const outputFolder = join(process.cwd(), 'out', 'summarize');
 
-const DefaultOptions = {
-	method: 'GET',
-	timeout: 30000,
-	headers: {
-		'Accept': 'text/html,application/xhtml+xml,application/xml',
-		'Accept-Language': 'en',
-		'Cache-Control': 'max-age=0',
-		'Connection': 'keep-alive',
-		'DNT': 1
-	}
-};
-if (!!config.extensions?.google_search?.proxy) {
-	DefaultOptions.proxy = config.extensions.google_search.proxy;
-}
-
 const command = {
 	"name": "summarize Website",
 	"cmd": "summarize_website",
@@ -55,6 +40,13 @@ command.execute = async (type, caller, target) => {
 	}
 	if (!url) url = prepare;
 	url = encodeURI(url);
+	if (!browse.isURL(url)) {
+		return {
+			speak: "Web page url \"" + url + "\" is invalid.",
+			reply: "wrong url",
+			exit: false
+		};
+	}
 	url = join(outputFolder, url.replace(/[:\\\/\?=&\$\.!\+]+/g, '_') + '.txt');
 
 	try {

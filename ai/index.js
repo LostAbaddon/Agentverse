@@ -15,7 +15,8 @@ const hooks = new EventEmitter();
 
 const events = [
 	"ask",
-	"task"
+	"task",
+	"action"
 ];
 
 const newID = (len=16) => {
