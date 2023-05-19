@@ -190,23 +190,35 @@ command.prepareHTML = content => {
 	;
 	return content;
 };
-command.clearHTML = content => {
-	return content
+command.clearHTML = (content, removeReturn=true) => {
+	content = content
 		.replace(/<a[^>]*?href="[^"]*?"[^>]*?>[\w\W]*?<\/a>/gi, '')
 		.replace(/<\/?[^>]*?>/gi, '')
 		.replace(/^[\s\r\n]+|[\s\r\n]+$/gi, '')
-		.replace(/[\s\r\n]+/gi, ' ')
-		.replace(/&#(\d+);/g, (match, code) => {
-			var char;
-			try {
-				char = String.fromCharCode(code * 1);
-			}
-			catch {
-				char = match;
-			}
-			return char;
+		.replace(/\s/g, (match) => {
+			if (match === '\n') return '\n';
+			if (match === '\t') return '\t';
+			if (match === ' ') return ' ';
+			return '';
 		})
 	;
+	if (removeReturn) {
+		content = content.replace(/\n+/gi, ' ');
+	}
+	else {
+		content = content.replace(/\n{2,}/gi, '\n\n');
+	}
+	content = content.replace(/&#(\d+);/g, (match, code) => {
+		var char;
+		try {
+			char = String.fromCharCode(code * 1);
+		}
+		catch {
+			char = match;
+		}
+		return char;
+	});
+	return content;
 };
 command.isURL = url => {
 	return !!url.match(/^https:?\/\/[\w\-\.]+(:\d+)?(\/[\w\-\.%\/]*)?(\?[\w\-\.%=&]*)?(\#[\w\-\.%]*)?$/i);
@@ -264,7 +276,7 @@ command.execute = async (type, caller, target) => {
 				content = 'Empty web page, no content.\n\nContinue the rest of the tasks and goals, please.';
 			}
 			else {
-				content = content + '\n\nNow use the page content to continue the tasks and goals, please.';
+				content = command.clearHTML(content, false) + '\n\nNow use the page content to continue the tasks and goals, please.';
 			}
 			writeFile(join(outputFolder, url.replace(/[:\\\/\?=&\$\.!\+]+/g, '_') + '.txt'), content, 'utf-8').catch(err => {
 				console.error('Save web page content into file failed: ' + (err.message || err.msg || err));

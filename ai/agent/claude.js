@@ -249,6 +249,9 @@ class ClaudeAgent extends AbstractAgent {
 			print('Knowledge added: ', count, 'log');
 		}
 	}
+	addMemory (human, ai) {
+		this.#memory.push([human, ai]);
+	}
 
 	async send (prompt, heat=1.0, addtion=true) {
 		var content = [], timespent = Date.now();
