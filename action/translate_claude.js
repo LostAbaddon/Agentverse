@@ -2,7 +2,10 @@ const { readFile, writeFile } = require('fs/promises');
 const { join } = require('path');
 const ClaudeAgent = require('../ai/agent/claude');
 const browse = require('../commands/browse');
+const StartPrompt = "请将下面的内容翻译为<language>，直接给出翻译，不要有任何评论或分析。如果一次输出不完，可以分多次输出。当翻译完成后，一定要在下一行输入“翻译完成”。在翻译过程中，如果我输入“请继续”，请继续输出剩余的翻译内容。如果翻译已经完成，我输入“请继续”后，请您输出“翻译完成”。\n\n以下是待翻译内容:\n\n<content>";
+const ContinuePrompt = "请继续";
 
+const LimitRate = 5;
 const Duration = 1000 * 10;
 const TotalRetryMax = 100;
 var totalRetry = 0;
@@ -60,10 +63,11 @@ const translate = async (ai, language, content) => {
 	if (!head) head = '';
 	else head = head[1] + ' ';
 	content = content.replace(/^\n*#*[ \t]*/, '');
+	var limitSize = content.length * LimitRate;
 
 	ai = ai.copy();
 	var loops = 0, answer = '', shouldContinue = true;
-	var prompt = ClaudeAgent.Prompts?.translateLongArticle
+	var prompt = StartPrompt
 		.replace(/<language>/i, language)
 		.replace(/<content>/i, content)
 	;
@@ -79,7 +83,7 @@ const translate = async (ai, language, content) => {
 	answer = answer + reply;
 	console.log('完成部分翻译: ' + reply.length + ' [' + loops + ']');
 
-	prompt = "请继续";
+	prompt = ContinuePrompt;
 	while (!!reply && shouldContinue) {
 		await wait(Duration);
 		reply = await sendAndReply(ai, prompt);
@@ -93,6 +97,10 @@ const translate = async (ai, language, content) => {
 		reply = reply.replace(/\s*翻译(已经?)?(完成|结束)\s*$/, '');
 		answer = answer + reply;
 		console.log('完成部分翻译: ' + reply.length + ' [' + loops + ']');
+		if (answer.length >= limitSize) {
+			console.warn("翻译文本过长，疑似出现异常……");
+			break;
+		}
 	}
 
 	answer = answer.replace(/^\n*#*\s*/, head);
