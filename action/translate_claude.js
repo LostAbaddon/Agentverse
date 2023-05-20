@@ -3,8 +3,9 @@ const { join } = require('path');
 const ClaudeAgent = require('../ai/agent/claude');
 const browse = require('../commands/browse');
 
-const RetryMax = 3;
-const Duration = 1000;
+const Duration = 1000 * 10;
+const TotalRetryMax = 100;
+var totalRetry = 0;
 
 const Action = {
 	name: "translate",
@@ -34,27 +35,25 @@ const decompose = content => {
 };
 const sendAndReply = async (ai, prompt) => {
 	var loops = 0;
-	for (let i = 0; i < RetryMax; i ++) {
+	while (totalRetry < TotalRetryMax) {
 		try {
 			let result = await ai.send(prompt, 1.0, false);
 			loops += result[1];
 			result = result[0];
 			ai.addMemory(prompt, result);
+			totalRetry = 0;
 			return [result, loops];
 		}
 		catch (err) {
 			console.error('Translate failed: ' + (err.message || err.msg || err));
 			console.error(err.stack);
-			if (i < RetryMax - 1) {
-				console.log('wait for retry...');
-				await wait(Duration);
-				console.log('retrying...');
-			}
-			else {
-				return ['\n\nTranslate failed...\n\n', loops + 1];
-			}
+			totalRetry ++;
+			console.log('wait for retry... (' + totalRetry + ')');
+			await wait(Duration);
+			console.log('retrying... (' + totalRetry + ')');
 		}
 	}
+	return ['', loops];
 };
 const translate = async (ai, language, content) => {
 	var head = content.match(/^\n*(#*)[ \t]*/);
@@ -71,6 +70,10 @@ const translate = async (ai, language, content) => {
 	var reply = await sendAndReply(ai, prompt);
 	loops += reply[1];
 	reply = reply[0];
+	if (!reply) {
+		console.log('翻译失败……');
+		return ['\n\n翻译失败\n\n', loops];
+	}
 	shouldContinue = !reply.match(/翻译(已经?)?(完成|结束)\s*$/);
 	reply = reply.replace(/\s*翻译(已经?)?(完成|结束)\s*$/, '');
 	answer = answer + reply;
@@ -82,6 +85,10 @@ const translate = async (ai, language, content) => {
 		reply = await sendAndReply(ai, prompt);
 		loops += reply[1];
 		reply = reply[0];
+		if (!reply) {
+			console.log('翻译失败……');
+			return ['\n\n翻译失败\n\n', loops];
+		}
 		shouldContinue = !reply.match(/翻译(已经?)?(完成|结束)\s*$/);
 		reply = reply.replace(/\s*翻译(已经?)?(完成|结束)\s*$/, '');
 		answer = answer + reply;
@@ -100,7 +107,7 @@ const translate = async (ai, language, content) => {
 	}
 	console.log('完成章节翻译: ' + answer.length + ' [' + loops + ']');
 
-	return [answer, loops]
+	return [answer, loops];
 };
 const saveToFile = async (output, result) => {
 	try {

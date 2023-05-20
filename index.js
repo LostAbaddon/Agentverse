@@ -46,9 +46,17 @@ const prepareAI = async (param, config) => {
 			global.globalHTTPSProxy.options = {
 				// keepAlive: true,
 				scheduling: 'lifo',
-				timeout: 5000,
+				// timeout: 5000,
+				timeout: 2 * 60 * 1000,
+				keepAliveTimeout: 5000,
+				maxHeadersCount: null,
+				headersTimeout: 40 * 1000,
 				noDelay: true
 			};
+			global.globalHTTPSProxy.on('error', (err, req, res) => {
+				logger.error('Global Proxy Error: ' + (err.message || err.msg || err));
+				res.end();
+			});
 		}
 		catch {
 			global.globalHTTPSProxy = null;
