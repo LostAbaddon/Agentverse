@@ -1,6 +1,7 @@
 const SocksProxyAgent = require('socks-proxy-agent');
 const server = require('./server.js').server;
 const socket = require('./server.js').console;
+const Axios = require('axios');
 const AI = require('./ai');
 const Agents = require("./ai/agents.js");
 const prepareSystem = require('./prepare');
@@ -26,30 +27,19 @@ const prepareAI = async (param, config) => {
 	if (!!config.proxy?.http) {
 		DefaultOptions.proxy = config.proxy.http;
 	}
-
-	var aiType = param.agent || config.agent;
-	if (!Agents.Agents[aiType]) {
-		aiType = config.agent;
-		if (!Agents.Agents[aiType]) {
-			aiType = Object.keys(Agents.Agents)[0];
-		}
-	}
-	var cfg = config.setting[aiType];
-	cfg.retry = config.setting.retry;
-	await AI.init({type: aiType, config: cfg});
 	if (!!config.proxy?.socks) {
 		try {
 			global.globalHTTPSProxy = new SocksProxyAgent.SocksProxyAgent(config.proxy.socks);
 			// global.globalHTTPSProxy.keepAlive = true;
 			// global.globalHTTPSProxy.keepAliveMsecs = 1000;
-			global.globalHTTPSProxy.scheduling = 'lifo';
+			// global.globalHTTPSProxy.scheduling = 'fifo';
 			global.globalHTTPSProxy.options = {
 				// keepAlive: true,
-				scheduling: 'lifo',
-				// timeout: 5000,
-				timeout: 2 * 60 * 1000,
+				// scheduling: 'fifo',
+				timeout: 5000,
+				// timeout: 2 * 60 * 1000,
 				// keepAliveTimeout: 5000,
-				maxHeadersCount: null,
+				// maxHeadersCount: null,
 				// headersTimeout: 40 * 1000,
 				noDelay: true
 			};
@@ -62,6 +52,18 @@ const prepareAI = async (param, config) => {
 			global.globalHTTPSProxy = null;
 		}
 	}
+	Axios.defaults.timeout = 2 * 60 * 1000;
+
+	var aiType = param.agent || config.agent;
+	if (!Agents.Agents[aiType]) {
+		aiType = config.agent;
+		if (!Agents.Agents[aiType]) {
+			aiType = Object.keys(Agents.Agents)[0];
+		}
+	}
+	var cfg = config.setting[aiType];
+	cfg.retry = config.setting.retry;
+	await AI.init({type: aiType, config: cfg});
 };
 
 const startDeamon = () => new Promise(res => {
@@ -120,7 +122,6 @@ const connectConsole = () => {
 		.addOption("--max -m <max> >> Max execution times")
 		.add('action')
 		.setParam('<action> >> Action name')
-		.addOption("--option -o <option> >> Action options")
 		.on("command", async (param, socket) => {
 			var quests = [];
 			var tasks = param.mission;

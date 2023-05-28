@@ -1,8 +1,9 @@
 const { readFile, writeFile } = require('fs/promises');
 const { join } = require('path');
+const Console = require('../server.js').console;
 const ClaudeAgent = require('../ai/agent/claude');
 const browse = require('../commands/browse');
-const StartPrompt = "请将下面的内容翻译为<language>，直接给出翻译，不要有任何评论或分析。如果一次输出不完，可以分多次输出。当翻译完成后，一定要在下一行输入“翻译完成”。在翻译过程中，如果我输入“请继续”，请继续输出剩余的翻译内容。如果翻译已经完成，我输入“请继续”后，请您输出“翻译完成”。\n\n以下是待翻译内容:\n\n<content>";
+const StartPrompt = "请将下面的内容翻译为<language>，直接给出翻译，不要有任何评论或分析，也不要有任何衍生内容。如果一次输出不完，可以分多次输出。当翻译完成后，一定要在下一行输入“翻译完成”。在翻译过程中，如果我输入“请继续”，请继续输出剩余的翻译内容。如果翻译已经完成，我输入“请继续”后，请您输出“翻译完成”。\n\n以下是待翻译内容:\n\n<content>";
 const ContinuePrompt = "请继续";
 
 const LimitRate = 5;
@@ -35,6 +36,24 @@ const decompose = content => {
 		parts.push(ctx);
 	}
 	return parts.filter(p => p.length > 0);
+};
+const checkFinish = content => {
+	var parts = content.split(/\n+/).filter(p => !!p);
+	var last = parts[parts.length - 1];
+	if (parts.length > 1) {
+		return !!last.match(/翻译(已经?|彻底|完全|全部)*(完成|结束|成功)\s*[\.。!！,，…]*\s*$/i);
+	}
+	else if (parts.length === 0) {
+		return true;
+	}
+	else {
+		return !!last.match(/翻译(已经?|彻底|完全|全部)*(完成|结束|成功)/i);
+	}
+};
+const clearReply = content => {
+	var pos = content.match(/\s*翻译(已经?|彻底|完全|全部)*(完成|结束|成功)/i);
+	if (!pos) return content;
+	return content.substring(0, pos.index);
 };
 const sendAndReply = async (ai, prompt) => {
 	var loops = 0;
@@ -78,8 +97,8 @@ const translate = async (ai, language, content) => {
 		console.log('翻译失败……');
 		return ['\n\n翻译失败\n\n', loops];
 	}
-	shouldContinue = !reply.match(/翻译(已经?)?(完成|结束)\s*$/);
-	reply = reply.replace(/\s*翻译(已经?)?(完成|结束)\s*$/, '');
+	shouldContinue = !checkFinish(reply);
+	reply = clearReply(reply);
 	answer = answer + reply;
 	console.log('完成部分翻译: ' + reply.length + ' [' + loops + ']');
 
@@ -93,8 +112,8 @@ const translate = async (ai, language, content) => {
 			console.log('翻译失败……');
 			return ['\n\n翻译失败\n\n', loops];
 		}
-		shouldContinue = !reply.match(/翻译(已经?)?(完成|结束)\s*$/);
-		reply = reply.replace(/\s*翻译(已经?)?(完成|结束)\s*$/, '');
+		shouldContinue = !checkFinish(reply);
+		reply = clearReply(reply);
 		answer = answer + reply;
 		console.log('完成部分翻译: ' + reply.length + ' [' + loops + ']');
 		if (answer.length >= limitSize) {
@@ -127,74 +146,98 @@ const saveToFile = async (output, result) => {
 		console.error(err.stack);
 	}
 };
+const execute = (ai) => new Promise(res => {
+	Console({
+		name: "Translator",
+		version: "0.0.1"
+	})
+	.add('action')
+	.setParam('<action> >> Action name')
+	.addOption("--target -t <target> >> Set target")
+	.addOption("--language -l [language] >> Set language")
+	.addOption("--output -o [output] >> Set output path")
+	.addOption("--start -s [start] >> Set start position")
+	.on("command", async (param, socket) => {
+		param = param.mission.filter(p => p.name === 'action' && p.value?.action === 'translate')[0].value;
+
+		var language = param.language || '中文';
+		var output = param.output;
+		if (!output) {
+			output = join(process.cwd(), 'out', 'translate.md');
+		}
+		else if (output.match(/^\./)) {
+			output = join(process.cwd(), output);
+		}
+
+		var target = param.target;
+		if (target.match(/^https?:\/\//i)) {
+			if (!browse.isURL(target)) {
+				target = "Invalid URL.";
+			}
+			else {
+				let content = await browse.execute('Claude', ai, {url: target});
+				target = content.reply
+					.replace(/^content:\n*|\n*Now use the page content to continue the tasks and goals, please\.\s*$/gi, '')
+				;
+			}
+		}
+		else if (target.match(/^[\\\/\.]/) && !target.match(/\n/)) {
+			let filepath = target;
+			if (target.match(/^\./)) {
+				filepath = join(process.cwd(), target);
+			}
+			try {
+				let content = await readFile(filepath, 'utf-8');
+				target = content;
+			}
+			catch (err) {
+				target = 'No such file.';
+			}
+		}
+
+		var oriLen = target.length, loop = 0, time = Date.now();
+		var start = param.start || 1;
+		if (start < 1) start = 1;
+		target = decompose(target);
+		if (start > target.length + 1) start = target.length + 1;
+		target.splice(0, start - 1);
+
+		var result = [];
+		try {
+			let input = await readFile(output, 'utf-8');
+			result.push(input);
+		} catch {}
+
+		console.log('Translating: ' + start + ' / ' + (target.length + start - 1));
+		for (let i = 0; i < target.length; i ++) {
+			let part = target[i];
+			let reply = await translate(ai, language, part);
+			result.push(reply[0]);
+			loop += reply[1];
+			await saveToFile(output, result.join('\n\n'));
+			if (i < target.length - 1) {
+				console.log('take a break...');
+				await wait(Duration);
+			}
+			console.log('Translating: ' + (result.length + start - 1) + ' / ' + (target.length + start - 1));
+		}
+
+		result = result.join('\n\n');
+		time = Date.now() - time;
+		var trsLen = result.length;
+		console.log('Job done: ' + oriLen + ' bytes => ' + trsLen + ' bytes.');
+		console.log('Timeused: ' + (time / 1000) + 's.');
+		console.log('AI Loops: ' + loop);
+
+		await saveToFile(output, result);
+
+		res(result);
+	})
+	.launch();
+});
 
 Action.execute = async (option, ai) => {
-	var language = option.language || option.lang || option.lan || option.l || '中文';
-	var target = option.target;
-	var output = option.out || option.output || option.o;
-	if (!output) {
-		output = join(process.cwd(), 'out', 'translate.md');
-	}
-
-	if (!target) {
-		target = 'Empty content.';
-	}
-	else if (target.match(/^https?$/i)) {
-		let args = process.argv.join(' ');
-		let pos = args.indexOf(target);
-		args = args.substring(pos);
-		pos = args.match(/[};]/);
-		if (!!pos) args = args.substring(0, pos.index);
-		if (!browse.isURL(args)) {
-			target = "Invalid URL.";
-		}
-		else {
-			let content = await browse.execute('Claude', ai, {url: args});
-			target = content.reply
-				.replace(/^content:\n*|\n*Now use the page content to continue the tasks and goals, please\.\s*$/gi, '')
-			;
-		}
-	}
-	else if (target.match(/^[\\\/\.]/) && !target.match(/\n/)) {
-		let filepath = target;
-		if (target.match(/^\./)) {
-			filepath = join(process.cwd(), target);
-		}
-		try {
-			let content = await readFile(filepath, 'utf-8');
-			target = content;
-		}
-		catch (err) {
-			target = 'No such file.';
-		}
-	}
-
-	var oriLen = target.length, loop = 0, time = Date.now();
-	target = decompose(target);
-	var result = [];
-	console.log('Translating: 1 / ' + target.length);
-	for (let i = 0; i < target.length; i ++) {
-		let part = target[i];
-		let reply = await translate(ai, language, part);
-		result.push(reply[0]);
-		loop += reply[1];
-		await saveToFile(output, result.join('\n\n'));
-		if (i < target.length - 1) {
-			console.log('take a break...');
-			await wait(Duration);
-		}
-		console.log('Translating: ' + (result.length + 1) + ' / ' + target.length);
-	}
-
-	result = result.join('\n\n');
-	time = Date.now() - time;
-	var trsLen = result.length;
-	console.log('Job done: ' + oriLen + ' bytes => ' + trsLen + ' bytes.');
-	console.log('Timeused: ' + (time / 1000) + 's.');
-	console.log('AI Loops: ' + loop);
-
-	await saveToFile(output, result);
-
+	var result = await execute(ai);
 	return result;
 };
 

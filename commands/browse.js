@@ -175,6 +175,14 @@ command.getWebpage = (requestOptions) => new Promise((res, rej) => {
 		}
 	});
 });
+command.prepareURL = url => {
+	while (true) {
+		let temp = decodeURI(url);
+		if (temp === url) break;
+		url = temp;
+	}
+	return encodeURI(url);
+};
 command.prepareHTML = content => {
 	var low = content.toLowerCase();
 	var start = low.indexOf('<body');
@@ -237,7 +245,7 @@ command.execute = async (type, caller, target) => {
 		}
 	}
 	if (!url) url = prepare;
-	url = encodeURI(url);
+	url = command.prepareURL(url);
 	if (!command.isURL(url)) {
 		return {
 			speak: "Web page url \"" + url + "\" is invalid.",

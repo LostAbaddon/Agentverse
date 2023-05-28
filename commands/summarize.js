@@ -39,7 +39,7 @@ command.execute = async (type, caller, target) => {
 		}
 	}
 	if (!url) url = prepare;
-	url = encodeURI(url);
+	url = browse.prepareURL(url);
 	if (!browse.isURL(url)) {
 		return {
 			speak: "Web page url \"" + url + "\" is invalid.",
