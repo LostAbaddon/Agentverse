@@ -1,7 +1,5 @@
-const SocksProxyAgent = require('socks-proxy-agent');
 const server = require('./server.js').server;
 const socket = require('./server.js').console;
-const Axios = require('axios');
 const AI = require('./ai');
 const Agents = require("./ai/agents.js");
 const prepareSystem = require('./prepare');
@@ -13,46 +11,7 @@ const config = require('./config.json');
 global.isSingleton = false;
 
 const prepareAI = async (param, config) => {
-	global.DefaultOptions = {
-		method: 'GET',
-		timeout: 30000,
-		headers: {
-			'Accept': 'text/html,application/xhtml+xml,application/xml',
-			'Accept-Language': 'en',
-			'Cache-Control': 'max-age=0',
-			// 'Connection': 'keep-alive',
-			'DNT': 1
-		}
-	};
-	if (!!config.proxy?.http) {
-		DefaultOptions.proxy = config.proxy.http;
-	}
-	if (!!config.proxy?.socks) {
-		try {
-			global.globalHTTPSProxy = new SocksProxyAgent.SocksProxyAgent(config.proxy.socks);
-			// global.globalHTTPSProxy.keepAlive = true;
-			// global.globalHTTPSProxy.keepAliveMsecs = 1000;
-			// global.globalHTTPSProxy.scheduling = 'fifo';
-			global.globalHTTPSProxy.options = {
-				// keepAlive: true,
-				// scheduling: 'fifo',
-				timeout: 5000,
-				// timeout: 2 * 60 * 1000,
-				// keepAliveTimeout: 5000,
-				// maxHeadersCount: null,
-				// headersTimeout: 40 * 1000,
-				noDelay: true
-			};
-			global.globalHTTPSProxy.on('error', (err, req, res) => {
-				logger.error('Global Proxy Error: ' + (err.message || err.msg || err));
-				res.end();
-			});
-		}
-		catch {
-			global.globalHTTPSProxy = null;
-		}
-	}
-	Axios.defaults.timeout = 2 * 60 * 1000;
+	prepareSystem.prepareProxy(config);
 
 	var aiType = param.agent || config.agent;
 	if (!Agents.Agents[aiType]) {
@@ -202,7 +161,7 @@ const dealSingletonEvent = async tasks => {
 };
 
 const init = async () => {
-	await prepareSystem();
+	await prepareSystem.prepareFolders();
 
 	var args = [].map.call(process.argv, a => a);
 	args.shift();

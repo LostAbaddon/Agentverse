@@ -1,9 +1,9 @@
 require('../core');
-const prepareSystem = require('../prepare');
+const {prepareFolders} = require('../prepare');
 const Search = require('../commands/search.js');
 
 (async () => {
-	await prepareSystem();
+	await prepareFolders();
 	console.log('Google Searching...');
 	var result = await Search.execute('', '', {q: 'Nanotechnological Armor'});
 	console.log(result);

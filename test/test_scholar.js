@@ -1,9 +1,9 @@
 require('../core');
-const prepareSystem = require('../prepare');
+const {prepareFolders} = require('../prepare');
 const Scholar = require('../commands/scholar.js');
 
 (async () => {
-	await prepareSystem();
+	await prepareFolders();
 	console.log('Google Schoar Searching...');
 	var result = await Scholar.execute('', '', {query: 'Nanotechnological Armor'});
 	console.log(result);

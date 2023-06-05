@@ -6,23 +6,9 @@ const Summarize = require('../commands/summarize.js');
 const config = require('../config.json');
 
 (async () => {
-	await prepareSystem();
+	await prepareSystem.prepareFolders();
 	await ClaudeAgent.loadPrompt();
-	try {
-		global.globalHTTPSProxy = new SocksProxyAgent.SocksProxyAgent(config.proxy);
-		global.globalHTTPSProxy.keepAlive = true;
-		global.globalHTTPSProxy.keepAliveMsecs = 1000;
-		global.globalHTTPSProxy.scheduling = 'lifo';
-		global.globalHTTPSProxy.options = {
-			keepAlive: true,
-			scheduling: 'lifo',
-			timeout: 5000,
-			noDelay: true
-		};
-	}
-	catch {
-		global.globalHTTPSProxy = null;
-	}
+	prepareSystem.prepareProxy(config);
 
 	var claude = new ClaudeAgent('', config.setting.Claude);
 	console.log('Summarizing web page...');

@@ -2,6 +2,7 @@ const { readdir, writeFile, readFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const ExtraAlias = {};
 
+const DefaultScope = ['main', 'sub'];
 const Commands = {
 	list: {},
 	alias: {},
@@ -28,12 +29,13 @@ Commands.loadCommands = async () => {
 		if (!filename) return;
 		if (!!filename.match(/^index\.js$/i)) return;
 		var cmd = require('./' + filename);
-		if (!cmd || !!cmd.disable || !cmd.cmd || !cmd.name) return;
+		if (!cmd || !cmd.cmd || !cmd.name) return;
 		Commands.list[cmd.cmd] = {
 			name: cmd.name,
 			command: cmd.cmd,
 			alias: cmd.alias,
-			args: cmd.args || {}
+			args: cmd.args || {},
+			scope: !!cmd.scope ? cmd.scope : DefaultScope
 		};
 		if (!!cmd.alias && !!cmd.alias.forEach) cmd.alias.forEach(n => {
 			Commands.alias[n] = cmd.cmd;
@@ -41,11 +43,12 @@ Commands.loadCommands = async () => {
 		commands[cmd.cmd] = cmd.execute;
 	});
 };
-Commands.generateCommands = () => {
+Commands.generateCommands = (scope="main") => {
 	var list = [], i = 1;
 	for (let cmd in Commands.list) {
 		cmd = Commands.list[cmd];
-		let command = i + '. ' + cmd.name + ': "' + cmd.command + '", ';
+		if (!cmd.scope.includes(scope)) continue;
+		let command = i + '. ' + cmd.name + '\n    "' + cmd.command + '": ';
 		let args = [];
 		for (let arg in cmd.args) {
 			let hint = cmd.args[arg];
@@ -62,10 +65,14 @@ Commands.generateCommands = () => {
 	}
 	return list.join('\n');
 };
-Commands.executeCommands = async (type, caller, cmd, args) => {
+Commands.executeCommands = async (type, scope, caller, cmd, args) => {
 	var command = commands[cmd];
 	if (!command) {
 		throw new Error('Nonexist command.');
+	}
+	var scopeList = Commands.list[cmd].scope;
+	if (!scopeList.includes(scope)) {
+		throw new Error('Out of scope: ' + scope);
 	}
 	return await command(type, caller, args);
 };

@@ -5,7 +5,7 @@ const browse = require('./browse');
 const outputFolder = join(process.cwd(), 'out', 'summarize');
 
 const command = {
-	"name": "summarize Website",
+	"name": "Summarize Website",
 	"cmd": "summarize_website",
 	"args": {
 		"url": "url",

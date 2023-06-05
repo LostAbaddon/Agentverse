@@ -4,7 +4,8 @@ const command = {
 	"alias": ["shutdown", "mission_complete"],
 	"args": {
 		"reason": "reason"
-	}
+	},
+	"scope": ['main']
 };
 
 command.execute = (type, caller, reason) => {

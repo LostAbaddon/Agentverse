@@ -174,6 +174,8 @@ class ClaudeAgent extends AbstractAgent {
 	#knowledge = [];
 	#memory = [];
 
+	agents = [];
+
 	static async loadPrompt () {
 		await Promise.all([
 			loadPrompts(),
@@ -436,7 +438,7 @@ class ClaudeAgent extends AbstractAgent {
 		var prompt = workflow.missionStart
 			.replace('<time>', nowTime)
 			.replace('<role>', role)
-			.replace('<commands>', Commands.generateCommands())
+			.replace('<commands>', Commands.generateCommands('main'))
 			.replace('<task>', task.split(/[\n\r]+/).map(l => '- ' + l.trim()).join('\n'))
 		;
 
@@ -482,7 +484,7 @@ class ClaudeAgent extends AbstractAgent {
 		this.#memory.push([replies, answer]);
 		return [result, loop, timespent];
 	}
-	async executeCommands (commands) {
+	async executeCommands (commands, scope="main") {
 		var task_complete = true, replies = [], loops = 0, timespent = 0;
 
 		if (!!commands && !!commands.length) {
@@ -523,7 +525,7 @@ class ClaudeAgent extends AbstractAgent {
 					argText = ' : ' + argText.join(', ');
 				}
 				try {
-					let result = await Commands.executeCommands('claude', this, command.command, args);
+					let result = await Commands.executeCommands('claude', scope, this, command.command, args);
 					time = Date.now() - time;
 					timespent += time;
 					time /= 1000;
@@ -581,6 +583,8 @@ class ClaudeAgent extends AbstractAgent {
 		catch (err) {
 			console.error('Save log file failed: ' + (err.message || err.msg || err));
 		}
+
+		this.agents.splice(0);
 		return reply;
 	}
 	async task (task) {
@@ -595,6 +599,7 @@ class ClaudeAgent extends AbstractAgent {
 		var heatMin = parseInt(ClaudeAgent.Prompts.missionHeatMin || 0);
 		var heatMax = parseInt(ClaudeAgent.Prompts.missionHeatMax || 1);
 		var heat = heatMax;
+		this.agents.splice(0);
 
 		try {
 			[answer, loop, timespent] = await this.analyzeRole(task.data);
@@ -708,6 +713,7 @@ class ClaudeAgent extends AbstractAgent {
 			return await this.generateReply(history, language);
 		}
 
+		this.agents.splice(0);
 		return answer;
 	}
 

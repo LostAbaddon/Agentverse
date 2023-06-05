@@ -1,9 +1,9 @@
 require('../core');
-const prepareSystem = require('../prepare');
+const {prepareFolders} = require('../prepare');
 const Browse = require('../commands/browse.js');
 
 (async () => {
-	await prepareSystem();
+	await prepareFolders();
 	console.log('Browsing web page...');
 	var result = await Browse.execute('', '', {url: 'https://www.jianshu.com/p/d633bb9bd463'});
 	// var result = await Browse.execute('', '', {url: 'https://www.zhihu.com/question/359948448/answer/1014333716'});

@@ -130,6 +130,9 @@ const translate = async (ai, language, content) => {
 			.replace(/\s*\?[ \t]*/gi, '？')
 			.replace(/\s*;[ \t]*/gi, '；')
 			.replace(/\s*:[ \t]*/gi, '：')
+			.replace(/\s*\([ \t]*/gi, '（')
+			.replace(/\s*\)[ \t]*/gi, '）')
+			.replace(/\s*\.\.\.[ \t]*/gi, '…')
 		;
 	}
 	console.log('完成章节翻译: ' + answer.length + ' [' + loops + ']');
