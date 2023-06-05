@@ -41,6 +41,7 @@ command.execute = async (type, caller, target) => {
 		}
 	}
 	action = Object.assign({}, prepare, action);
+	action.useCommands = false; // test
 
 	var prompt = [], idx = caller.agents.length + 1;
 	prompt.push(`Your name is agent-${idx}.`);
