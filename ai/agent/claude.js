@@ -491,7 +491,7 @@ class ClaudeAgent extends AbstractAgent {
 		return [result, loop, timespent];
 	}
 	async executeCommands (commands, scope="main") {
-		var task_complete = true, replies = [], loops = 0, timespent = 0;
+		var task_complete = true, could_exit = false, replies = [], loops = 0, timespent = 0;
 
 		if (!!commands && !!commands.length) {
 			for (let cmd of commands) {
@@ -544,6 +544,9 @@ class ClaudeAgent extends AbstractAgent {
 					if (result.exit === false) {
 						task_complete = false;
 					}
+					else if (result.exit === true) {
+						could_exit = true;
+					}
 					await wait(this.#interval);
 				}
 				catch (err) {
@@ -552,7 +555,7 @@ class ClaudeAgent extends AbstractAgent {
 			}
 		}
 
-		return [replies, task_complete, loops, timespent];
+		return [replies, task_complete, could_exit, loops, timespent];
 	}
 	async generateReply (history, language) {
 		var reply = 'Mission Completed.';
@@ -597,7 +600,7 @@ class ClaudeAgent extends AbstractAgent {
 		var loops = 0, totalTime = 0, max = task.max;
 		if (!max) max = Infinity;
 		var answer, loop, timespent;
-		var replies, completed, emptyLoop = 0, msg;
+		var replies, completed, could, could_exit = false, emptyLoop = 0, msg;
 		var history = [];
 		var role, template, language;
 		var workflow;
@@ -627,7 +630,8 @@ class ClaudeAgent extends AbstractAgent {
 			await wait(this.#interval);
 
 			if (!!answer.command && !!answer.command.length) {
-				[replies, completed, loop, timespent] = await this.executeCommands(answer.command);
+				[replies, completed, could, loop, timespent] = await this.executeCommands(answer.command);
+				could_exit = could_exit || could;
 				loops += loop;
 				totalTime += timespent;
 				msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
@@ -657,7 +661,7 @@ class ClaudeAgent extends AbstractAgent {
 				history.push('Mission Failed: AI call times exhausted.');
 				return await this.generateReply(history, language);
 			}
-			if (emptyLoop >= MaxEmptyLoop) {
+			if (emptyLoop >= MaxEmptyLoop || (could_exit && emptyLoop > 0)) {
 				print("Mission maybe completed: ", 'AI didn\'t response actively.', 'warn');
 				history.push('Mission maybe completed: AI didn\'t response actively.');
 				return await this.generateReply(history, language);
@@ -674,7 +678,8 @@ class ClaudeAgent extends AbstractAgent {
 				await wait(this.#interval);
 
 				if (!!answer.command && !!answer.command.length) {
-					[replies, completed, loop, timespent] = await this.executeCommands(answer.command);
+					[replies, completed, could, loop, timespent] = await this.executeCommands(answer.command);
+					could_exit = could_exit || could;
 					loops += loop;
 					totalTime += timespent;
 					msg = `task used ${totalTime / 1000} seconds in ${loops} loops(up to ${max} loops).`;
@@ -704,7 +709,7 @@ class ClaudeAgent extends AbstractAgent {
 					history.push('Mission Failed: AI call times exhausted.');
 					return await this.generateReply(history, language);
 				}
-				if (emptyLoop >= MaxEmptyLoop) {
+				if (emptyLoop >= MaxEmptyLoop || (could_exit && emptyLoop > 0)) {
 					print("Mission maybe completed: ", 'AI didn\'t response actively.', 'warn');
 					history.push('Mission maybe completed: AI didn\'t response actively.');
 					return await this.generateReply(history, language);
