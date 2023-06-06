@@ -54,37 +54,43 @@ const normalize = content => {
 const analyzeCommands = content => {
 	var json = [], last = '';
 	content = '\n' + (content || '').split(/\r*\n\r*/).join('\n\n') + '\n';
-	content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1?|:\s*[\[\{\s]+([\w\W]*?)[\]\}\s]+[^\[\]\{\}]*?\n/gi, (match, _, name, value) => {
-		if (!!name) {
-			let m = match.match(/^\W*([\w_ ]+)/);
-			name = m[1];
-			last = name;
-		}
-		else {
-			value = value
-				.replace(/(\s*\n\s*)+/g, ' ')
-				.replace(/^[\s,;:]+|[\s,;:]+$/g, '')
-			;
-			let poses = [], args = {};
-			value = '\n' + value + '\n';
-			value.replace(/[^\w'":,;\n]*[,;\n][^\w'":,;\n]*(\\*)(['"]?)([\w_ ]+)\2\s*:\s*/gi, (match, pre, quote, name, pos) => {
-				pre = pre || '';
-				var len = pre.length || 0;
-				if (len >> 1 << 1 !== len) return;
-				var loc = pos + match.length;
-				poses.push([pos, loc, name]);
-			});
-			poses.push([value.length, value.length, '']);
-			for (let i = 0, len = poses.length - 1; i < len; i ++) {
-				let s = poses[i][1], e = poses[i + 1][0];
-				let v = value.substring(s, e);
-				v = v.replace(/^[\s'"]*|[\s'"]*$/g, '');
-				args[poses[i][2]] = v;
+
+	var found = true;
+	while (found) {
+		found = false;
+		content = content.replace(/\n[^'":]*(['"]?)([\w_ ]+)\1?|:\s*[\[\{\s]+([\w\W]*?)[\]\}\s]+[^\[\]\{\}]*?\n/i, (match, _, name, value) => {
+			found = true;
+			if (!!name) {
+				let m = match.match(/^\W*([\w_ ]+)/);
+				name = m[1];
+				last = name;
 			}
-			json.push([last, args, match]);
-		}
-		return match;
-	});
+			else {
+				value = value
+					.replace(/(\s*\n\s*)+/g, ' ')
+					.replace(/^[\s,;:]+|[\s,;:]+$/g, '')
+				;
+				let poses = [], args = {};
+				value = '\n' + value + '\n';
+				value.replace(/[^\w'":,;\n]*[,;\n][^\w'":,;\n]*(\\*)(['"]?)([\w_ ]+)\2\s*:\s*/gi, (match, pre, quote, name, pos) => {
+					pre = pre || '';
+					var len = pre.length || 0;
+					if (len >> 1 << 1 !== len) return;
+					var loc = pos + match.length;
+					poses.push([pos, loc, name]);
+				});
+				poses.push([value.length, value.length, '']);
+				for (let i = 0, len = poses.length - 1; i < len; i ++) {
+					let s = poses[i][1], e = poses[i + 1][0];
+					let v = value.substring(s, e);
+					v = v.replace(/^[\s'"]*|[\s'"]*$/g, '');
+					args[poses[i][2]] = v;
+				}
+				json.push([last, args, match.replace(/\n*$/g, '')]);
+			}
+			return '\n';
+		});
+	}
 	return json;
 };
 const analyzeRole = role => {
