@@ -570,9 +570,15 @@ class ClaudeAgent extends AbstractAgent {
 				.replace(/<language>/gi, language)
 				.replace(/<content>/gi, reply)
 			;
-			let translate = await ai.send(prompt, 0.5, false);
-			translate = translate[0];
-			if (!!translate) reply = translate;
+			let translate;
+			try {
+				translate = await ai.send(prompt, 0.5, false);
+				translate = translate[0];
+			}
+			catch {
+				translate = null;
+			}
+			if (!!translate && !translate.match(/^\s*translation end\s*$/i)) reply = translate;
 		}
 		catch (err) {
 			let msg = err.message || err.msg || err;

@@ -2,7 +2,7 @@ const Commands = require('../commands');
 const config = require('../config.json');
 
 const command = {
-	"name": "Create Agent",
+	"name": "Create AI-Agent",
 	"cmd": "create_agent",
 	"alias": ['new_agent', 'sub_agent', 'new_ai', 'newagent', 'subagent', 'newai'],
 	"args": {
@@ -48,6 +48,7 @@ command.execute = async (type, caller, target) => {
 	if (!!action.role) {
 		prompt.push(`From now on, you are ${action.role}.`);
 	}
+	prompt.push('Task:\n');
 	prompt.push(action.task);
 	if (action.useCommands) {
 		let p = 'Commands you can use:\n' + Commands.generateCommands('sub');
