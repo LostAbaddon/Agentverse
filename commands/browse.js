@@ -36,7 +36,7 @@ const parseSimpleMarkdown = content => {
 		let temp = content
 			.replace(/<h(\d)[^>]*?>([\w\W]*?)<\/h\1>/gi, (match, lev, ctx) => {
 				lev = lev * 1;
-				var l = levs.indexOf(lev);
+				var l = levs.indexOf(lev) + 1;
 				var h = '';
 				for (let i = 0; i <= l; i ++) {
 					h += '#';
@@ -281,10 +281,10 @@ command.execute = async (type, caller, target) => {
 				content = defaultParse(content);
 			}
 			if (!content || !!content.match(/^Content:[\s\r\n]*$/)) {
-				content = 'Empty web page, no content.\n\nContinue the rest of the tasks and goals, please.';
+				content = 'Empty web page, no content.';
 			}
 			else {
-				content = command.clearHTML(content, false) + '\n\nNow use the page content to continue the tasks and goals, please.';
+				content = command.clearHTML(content, false);
 			}
 			writeFile(join(outputFolder, url.replace(/[:\\\/\?=&\$\.!\+]+/g, '_') + '.txt'), content, 'utf-8').catch(err => {
 				console.error('Save web page content into file failed: ' + (err.message || err.msg || err));

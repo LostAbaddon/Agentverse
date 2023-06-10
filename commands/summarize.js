@@ -111,14 +111,13 @@ command.execute = async (type, caller, target) => {
 			if (i === retryMax - 1) {
 				return {
 					speak: "Summarize web page failed: " + msg,
-					reply: 'no summarize for this web page.\n\nContinue the rest of the tasks and goals, please.',
+					reply: 'no summarize for this web page.',
 					exit: false
 				}
 			}
 		}
 	}
 
-	summarize = summarize + '\n\nNow use the summary to continue the tasks and goals, please.';
 	writeFile(url, summarize, 'utf-8').catch(err => {
 		console.error('Save web page summary into file failed: ' + (err.message || err.msg || err));
 	});

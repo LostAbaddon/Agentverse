@@ -86,7 +86,8 @@ const analyzeCommands = content => {
 					v = v.replace(/^[\s'"]*|[\s'"]*$/g, '');
 					args[poses[i][2]] = v;
 				}
-				json.push([last, args, match.replace(/\n*$/g, '')]);
+				let raw = last + match.replace(/\n*$/g, '').replace(/^[\s\n\r:]*\[/, '(').replace(/\][\s\n\r\.]*$/, ')');
+				json.push([last, args, raw]);
 			}
 			return '\n';
 		});
@@ -103,19 +104,19 @@ const analyzeRole = role => {
 	return list.last;
 };
 const showAIResponse = response => {
-	if (!!response.thoughts) {
+	if (!!response.thoughts && !!response.thoughts.replace) {
 		print("AI thought: ", response.thoughts.replace(/[\r\n]+/g, '\n'), 'info');
 	}
-	if (!!response.reasoning) {
+	if (!!response.reasoning && !!response.reasoning.replace) {
 		print("Reasons: ", response.reasoning.replace(/[\r\n]+/g, '\n'), 'info');
 	}
-	if (!!response.plan && !!response.plan.length) {
+	if (!!response.plan && !!response.plan.replace && !!response.plan.length) {
 		print("Next Plan:\n", response.plan.replace(/[\r\n]+/g, '\n'), 'info');
 	}
-	if (!!response.criticism) {
+	if (!!response.criticism && !!response.criticism.replace) {
 		print("Criticism: ", response.criticism.replace(/[\r\n]+/g, '\n'), 'info');
 	}
-	if (!!response.speak) {
+	if (!!response.speak && !!response.speak.replace) {
 		print("Talking to YOU: ", response.speak.replace(/[\r\n]+/g, '\n'), 'log');
 	}
 	if (!!response.command && !!response.command.length) {
@@ -411,7 +412,7 @@ class ClaudeAgent extends AbstractAgent {
 
 	async analyzeRole (task) {
 		var prompt = ClaudeAgent.Prompts.analyzeRole
-			.replace('<jobs>', ClaudeAgent.Jobs.join(', '))
+			.replace('<jobs>', ClaudeAgent.Jobs.map(n => '"' + n + '"').join(', '))
 			.replace('<task>', task)
 		;
 
@@ -464,17 +465,6 @@ class ClaudeAgent extends AbstractAgent {
 		return [result, loop, timespent];
 	}
 	async continueMission (workflow, replies, heat) {
-		if (!replies || replies.length === 0) {
-			replies = workflow.missionContinue;
-		}
-		else {
-			if (!!workflow.missionContinue) {
-				replies.push('');
-				replies.push(workflow.missionContinue);
-			}
-			replies = replies.join('\n\n');
-		}
-
 		var answer, loop, timespent;
 		[answer, loop, timespent] = await this.send(replies, heat, false);
 		answer = normalize(answer);
@@ -490,7 +480,7 @@ class ClaudeAgent extends AbstractAgent {
 		this.#memory.push([replies, answer]);
 		return [result, loop, timespent];
 	}
-	async executeCommands (commands, scope="main") {
+	async executeCommands (commands, workflow, scope="main") {
 		var task_complete = true, could_exit = false, replies = [], loops = 0, timespent = 0;
 
 		if (!!commands && !!commands.length) {
@@ -539,7 +529,7 @@ class ClaudeAgent extends AbstractAgent {
 						print("Execute command " + command.name + ' completed with respond in ' + time + 's : ', result.speak, 'info');
 					}
 					if (result.exit !== true && !result.noReply) {
-						replies.push("## Command (" + name + ': ' + raw + ') returned:\n' + result.reply);
+						replies.push("# Command `" + raw + '` got reply\n\n' + result.reply + '\n\n' + workflow.missionResultSeparator + '\n\n');
 					}
 					if (result.exit === false) {
 						task_complete = false;
@@ -553,6 +543,18 @@ class ClaudeAgent extends AbstractAgent {
 					print('Execute command ' + command.name + ' failed: ', err.message || err.msg || err, 'error');
 				}
 			}
+		}
+
+		if (!replies || replies.length === 0) {
+			replies = workflow.missionContinueWithoutReply;
+		}
+		else {
+			let rep = workflow.startContinueMission + '\n';
+			replies.forEach(r => {
+				rep = rep + r;
+			});
+			rep = rep + '\n' + workflow.missionContinue;
+			replies = rep;
 		}
 
 		return [replies, task_complete, could_exit, loops, timespent];
@@ -619,6 +621,7 @@ class ClaudeAgent extends AbstractAgent {
 			language = answer.language;
 			workflow = ClaudeAgent.Workflow[template] || ClaudeAgent.Workflow.default;
 			workflow = Object.assign({}, ClaudeAgent.Workflow.default, workflow);
+			workflow.missionContinueWithoutReply = workflow.missionContinueWithoutReply || 'please continue...';
 			await wait(this.#interval);
 
 			[answer, loop, timespent] = await this.startMission(workflow, role, task.data, heat);
@@ -630,7 +633,7 @@ class ClaudeAgent extends AbstractAgent {
 			await wait(this.#interval);
 
 			if (!!answer.command && !!answer.command.length) {
-				[replies, completed, could, loop, timespent] = await this.executeCommands(answer.command);
+				[replies, completed, could, loop, timespent] = await this.executeCommands(answer.command, workflow);
 				could_exit = could_exit || could;
 				loops += loop;
 				totalTime += timespent;
@@ -639,9 +642,9 @@ class ClaudeAgent extends AbstractAgent {
 				await wait(this.#interval);
 			}
 			else {
-				replies = null;
+				replies = workflow.missionContinueWithoutReply;
 			}
-			if (!replies || !replies.length) {
+			if (replies === workflow.missionContinueWithoutReply) {
 				emptyLoop ++;
 			}
 			else {
@@ -678,7 +681,7 @@ class ClaudeAgent extends AbstractAgent {
 				await wait(this.#interval);
 
 				if (!!answer.command && !!answer.command.length) {
-					[replies, completed, could, loop, timespent] = await this.executeCommands(answer.command);
+					[replies, completed, could, loop, timespent] = await this.executeCommands(answer.command, workflow);
 					could_exit = could_exit || could;
 					loops += loop;
 					totalTime += timespent;
@@ -687,9 +690,9 @@ class ClaudeAgent extends AbstractAgent {
 					await wait(this.#interval);
 				}
 				else {
-					replies = [];
+					replies = workflow.missionContinueWithoutReply;
 				}
-				if (!replies || !replies.length) {
+				if (replies === workflow.missionContinueWithoutReply) {
 					emptyLoop ++;
 				}
 				else {

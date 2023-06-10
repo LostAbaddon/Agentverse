@@ -8,7 +8,7 @@ const command = {
 	"args": {
 		"role": "role",
 		"task": "task",
-		"useCommands": "useCommands"
+		"useCommands": "yesOrNo"
 	},
 	"scope": ['main']
 };
@@ -64,7 +64,7 @@ command.execute = async (type, caller, target) => {
 			result = await ai.send(prompt, 1.0, false);
 			return {
 				speak: `Sub Agent-${idx} finished the task with reply:\n${result}`,
-				reply: `Sub Agent-${idx} finished the task, here's the reply, you can use them to continue you mission:\n${result}`,
+				reply: `Sub Agent-${idx} finished the task:\n\n${result}`,
 				exit: false
 			};
 		}

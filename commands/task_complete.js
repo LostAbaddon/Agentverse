@@ -3,7 +3,7 @@ const command = {
 	"cmd": "task_complete",
 	"alias": ["shutdown", "mission_complete"],
 	"args": {
-		"reason": "reason"
+		"reason": "finalReply"
 	},
 	"scope": ['main']
 };

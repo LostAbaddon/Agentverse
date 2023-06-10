@@ -15,7 +15,7 @@ const command = {
 		'scholarsearch',
 	],
 	"args": {
-		"query": "query"
+		"query": "keywords"
 	}
 };
 
@@ -137,7 +137,6 @@ command.execute = async (type, caller, target) => {
 	for (let i = retryMax; i > 0; i --) {
 		try {
 			result = await scrabGoogle(query);
-			result = result + '\n\nNow use these scholar search results to continue the mission.';
 			writeFile(join(outputFolder, query + '.txt'), result, 'utf-8').catch(err => {
 				console.error('Save Scholar Search Result into file failed: ' + (err.message || err.msg || err));
 			});

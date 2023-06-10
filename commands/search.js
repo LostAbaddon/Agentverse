@@ -10,7 +10,7 @@ const command = {
 	"cmd": "google_search",
 	"alias": ['google', 'search', 'web_search'],
 	"args": {
-		"query": "query"
+		"query": "keywords"
 	}
 };
 
@@ -196,7 +196,6 @@ command.execute = async (type, caller, target) => {
 			else {
 				result = await scrabGoogle(query);
 			}
-			result = result + '\n\nNow use these search results to continue the mission.';
 			writeFile(join(outputFolder, query + '.txt'), result, 'utf-8').catch(err => {
 				console.error('Save Search Result into file failed: ' + (err.message || err.msg || err));
 			});
