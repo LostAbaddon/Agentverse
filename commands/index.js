@@ -58,7 +58,7 @@ Commands.generateCommands = (scope="main") => {
 			command += 'no arg.';
 		}
 		else {
-			command += 'args: ' + args.join(', ');
+			command += args.join(', ');
 		}
 		list.push(command);
 		i ++;
